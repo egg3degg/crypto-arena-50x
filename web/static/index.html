@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CryptoArena 50X - 5-Bot Trading Championship</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Header Banner -->
+    <header class="top-header">
+      <div class="brand">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <h1>CRYPTO<span class="highlight">ARENA</span> 50X</h1>
+          <span class="sub-brand">7-Day $50 Strategy Championship & Self-Improving AI</span>
+        </div>
+      </div>
+
+      <div class="header-metrics">
+        <div class="metric-card">
+          <span class="metric-label">STATUS</span>
+          <span class="metric-value status-online"><span class="pulse-dot"></span> 24/7 LIVE</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">TOTAL ALLOCATED</span>
+          <span class="metric-value">$250.00 <small>($50/bot)</small></span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">TOTAL ARENA PnL</span>
+          <span class="metric-value" id="header-total-pnl">+$0.00</span>
+        </div>
+        <button class="btn-live-switch" onclick="openLiveSwitchModal()">
+          🚀 1-Click Live Switch ($50)
+        </button>
+      </div>
+    </header>
+
+    <!-- Tickers Bar -->
+    <div class="tickers-marquee" id="tickers-bar">
+      <div class="ticker-item"><span class="sym">SOL/USDT</span> <span class="price">$---</span></div>
+      <div class="ticker-item"><span class="sym">ETH/USDT</span> <span class="price">$---</span></div>
+      <div class="ticker-item"><span class="sym">BTC/USDT</span> <span class="price">$---</span></div>
+      <div class="ticker-item"><span class="sym">AVAX/USDT</span> <span class="price">$---</span></div>
+      <div class="ticker-item"><span class="sym">NEAR/USDT</span> <span class="price">$---</span></div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab('leaderboard')">🏆 Bot Leaderboard</button>
+      <button class="tab-btn" onclick="switchTab('chart')">📈 Performance Curves</button>
+      <button class="tab-btn" onclick="switchTab('research')">🧠 Autonomous Deep Research</button>
+      <button class="tab-btn" onclick="switchTab('learning')">⚙️ Self-Improvement AI</button>
+      <button class="tab-btn" onclick="switchTab('trades')">⚡ Live Trades & Positions</button>
+    </nav>
+
+    <!-- Tab Content -->
+    <main class="main-content">
+      
+      <!-- TAB 1: LEADERBOARD -->
+      <section id="tab-leaderboard" class="tab-pane active">
+        <div class="section-title-row">
+          <h2>🏆 Real-Time Bot Championship Rankings</h2>
+          <span class="caption">Each bot trades independently with $50 simulated capital</span>
+        </div>
+
+        <div class="leaderboard-grid" id="leaderboard-container">
+          <!-- Dynamically populated via JS -->
+          <div class="loading-state">Initializing Arena Bots...</div>
+        </div>
+      </section>
+
+      <!-- TAB 2: EQUITY CURVE CHART -->
+      <section id="tab-chart" class="tab-pane">
+        <div class="section-title-row">
+          <h2>📈 7-Day Multi-Bot Equity Growth Chart</h2>
+          <span class="caption">Simulated PnL curves incorporating 0.075% fee and slippage</span>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="equityChart"></canvas>
+        </div>
+      </section>
+
+      <!-- TAB 3: AUTONOMOUS RESEARCH -->
+      <section id="tab-research" class="tab-pane">
+        <div class="section-title-row">
+          <h2>🧠 Autonomous Market & Smart Wallet Intelligence</h2>
+          <span class="caption">Real-time regime classification and on-chain whale flow scanner</span>
+        </div>
+
+        <div class="research-grid">
+          <!-- Market Regime Card -->
+          <div class="research-card">
+            <h3>🌐 Live Market Regimes</h3>
+            <div id="regime-content" class="card-body">Scanning market dynamics...</div>
+          </div>
+
+          <!-- Smart Wallet On-Chain Card -->
+          <div class="research-card">
+            <h3>🐋 Smart Money & Whale Inflows</h3>
+            <div id="smart-wallet-content" class="card-body">Analyzing top profitable wallets...</div>
+          </div>
+        </div>
+
+        <div class="research-logs-container">
+          <h3>📜 Deep Research Intelligence Log</h3>
+          <div class="log-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Category</th>
+                  <th>Intelligence Report</th>
+                </tr>
+              </thead>
+              <tbody id="research-log-rows">
+                <tr><td colspan="3">Waiting for research cycle...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: SELF-IMPROVEMENT AI -->
+      <section id="tab-learning" class="tab-pane">
+        <div class="section-title-row">
+          <h2>⚙️ Self-Improvement & Parameter Adaptation Feed</h2>
+          <span class="caption">Bots automatically tune Stop-Loss, Take-Profit, and indicators every 2 hours</span>
+        </div>
+
+        <div class="log-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Bot</th>
+                <th>Parameter</th>
+                <th>Old Value</th>
+                <th>New Value</th>
+                <th>AI Optimization Rationale</th>
+              </tr>
+            </thead>
+            <tbody id="adjustments-rows">
+              <tr><td colspan="6">No parameter adjustments logged yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 5: TRADES & POSITIONS -->
+      <section id="tab-trades" class="tab-pane">
+        <div class="split-tables">
+          <div class="table-card">
+            <div class="section-title-row">
+              <h3>⚡ Currently Open Positions</h3>
+            </div>
+            <div class="log-table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Bot</th>
+                    <th>Pair</th>
+                    <th>Entry</th>
+                    <th>Current</th>
+                    <th>Unrealized PnL</th>
+                    <th>SL / TP</th>
+                  </tr>
+                </thead>
+                <tbody id="open-positions-rows">
+                  <tr><td colspan="6">No open positions.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="table-card">
+            <div class="section-title-row">
+              <h3>📜 Recent Closed Trades History</h3>
+            </div>
+            <div class="log-table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Bot</th>
+                    <th>Pair</th>
+                    <th>Side</th>
+                    <th>Price</th>
+                    <th>Realized PnL</th>
+                    <th>Trigger</th>
+                  </tr>
+                </thead>
+                <tbody id="trades-rows">
+                  <tr><td colspan="7">No closed trades yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 1-Click Live Switch Modal -->
+    <div id="live-switch-modal" class="modal-overlay">
+      <div class="modal-box">
+        <div class="modal-header">
+          <h2>🚀 Deploy #1 Champion Strategy to Live $50</h2>
+          <button class="close-btn" onclick="closeLiveSwitchModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="modal-body-content">
+          <p>Loading winner metrics...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

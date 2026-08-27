@@ -1,0 +1,16 @@
+{
+  "champion_bot_id": "bot_1_alphatrend",
+  "champion_name": "AlphaTrend",
+  "strategy_name": "EMA Ribbon + SuperTrend + ADX Momentum",
+  "initial_capital_usd": 50.0,
+  "max_concurrent_trades": 2,
+  "stake_per_trade_usd": 25.0,
+  "trading_pairs": [
+    "SOL/USDT",
+    "ETH/USDT",
+    "BTC/USDT",
+    "AVAX/USDT",
+    "NEAR/USDT"
+  ],
+  "status": "READY_FOR_REAL_TRADING"
+}
