@@ -1,5 +1,6 @@
-// CryptoArena Web Master Control & Analytics Script
+// CryptoArena Web Master Control, Polymarket & Analytics Script
 let chartInstance = null;
+let candleChartInstance = null;
 let allocationChartInstance = null;
 let winLossChartInstance = null;
 let strategyBarChartInstance = null;
@@ -8,6 +9,7 @@ let currentTab = 'leaderboard';
 let activeBotsCache = [];
 let activePositionsCache = [];
 let activeTradesCache = [];
+let activePairsCache = [];
 
 const BASE_BOT_COLORS = [
   '#06b6d4', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6', '#14b8a6', '#f97316'
@@ -18,7 +20,11 @@ document.addEventListener('DOMContentLoaded', () => {
   initEquityChart();
   initAnalyticsCharts();
   fetchInitialData();
-  setInterval(fetchInitialData, 7000);
+  fetchPolymarketData();
+  fetchSentimentData();
+  setInterval(fetchInitialData, 6000);
+  setInterval(fetchPolymarketData, 20000);
+  setInterval(fetchSentimentData, 30000);
 });
 
 function switchTab(tabId) {
@@ -26,7 +32,9 @@ function switchTab(tabId) {
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
 
-  event.target.classList.add('active');
+  if (event && event.target) {
+    event.target.classList.add('active');
+  }
   const targetPane = document.getElementById(`tab-${tabId}`);
   if (targetPane) targetPane.classList.add('active');
 
@@ -34,6 +42,10 @@ function switchTab(tabId) {
     updateEquityChartData();
   } else if (tabId === 'analytics') {
     updateAnalyticsCharts();
+  } else if (tabId === 'candlestick') {
+    loadCandlestickChart(document.getElementById('candlestick-pair-select').value);
+  } else if (tabId === 'polymarket') {
+    fetchPolymarketData();
   }
 }
 
@@ -63,17 +75,19 @@ function initWebSocket() {
 
 async function fetchInitialData() {
   try {
-    const [leaderboardRes, tradesRes, positionsRes, researchRes, adjustmentsRes] = await Promise.all([
+    const [leaderboardRes, tradesRes, positionsRes, researchRes, adjustmentsRes, pairsRes] = await Promise.all([
       fetch('/api/leaderboard').then(r => r.json()),
       fetch('/api/trades').then(r => r.json()),
       fetch('/api/positions').then(r => r.json()),
       fetch('/api/research').then(r => r.json()),
-      fetch('/api/adjustments').then(r => r.json())
+      fetch('/api/adjustments').then(r => r.json()),
+      fetch('/api/pairs').then(r => r.json()).catch(() => [])
     ]);
 
     activeBotsCache = leaderboardRes || [];
     activePositionsCache = positionsRes || [];
     activeTradesCache = tradesRes || [];
+    activePairsCache = pairsRes || [];
 
     renderLeaderboard(leaderboardRes);
     renderTrades(tradesRes);
@@ -87,6 +101,73 @@ async function fetchInitialData() {
   }
 }
 
+async function fetchPolymarketData() {
+  try {
+    const data = await fetch('/api/polymarket-events').then(r => r.json());
+    renderPolymarketMarkets(data);
+  } catch (e) {
+    console.error("Polymarket Fetch Error", e);
+  }
+}
+
+async function fetchSentimentData() {
+  try {
+    const data = await fetch('/api/sentiment').then(r => r.json());
+    renderSentiment(data);
+  } catch (e) {
+    console.error("Sentiment Fetch Error", e);
+  }
+}
+
+// Render Polymarket Prediction Events
+function renderPolymarketMarkets(markets) {
+  const container = document.getElementById('poly-markets-container');
+  if (!container || !markets || !markets.length) return;
+
+  let html = '';
+  markets.forEach(m => {
+    const yesPct = Math.round(m.yes_price * 100);
+    const noPct = 100 - yesPct;
+    html += `
+      <div class="poly-card">
+        <div style="font-size:11px; color:var(--accent-purple); font-weight:700; margin-bottom:4px;">${m.category}</div>
+        <div class="poly-q">${m.question}</div>
+        
+        <div class="poly-odds-bar">
+          <div class="poly-yes-bar" style="width: ${yesPct}%;"></div>
+          <div class="poly-no-bar" style="width: ${noPct}%;"></div>
+        </div>
+
+        <div class="poly-odds-labels">
+          <span style="color:var(--accent-green);">YES: $${m.yes_price.toFixed(2)} (${yesPct}%)</span>
+          <span style="color:var(--accent-red);">NO: $${m.no_price.toFixed(2)} (${noPct}%)</span>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; margin-top:12px; font-size:11px; color:var(--text-muted);">
+          <span>24h Vol: $${Math.round(m.volume_24h).toLocaleString()}</span>
+          <span>Resolves: ${m.end_date || 'Upcoming'}</span>
+        </div>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
+}
+
+// Render Sentiment Radar
+function renderSentiment(data) {
+  if (!data) return;
+  const scoreEl = document.getElementById('fng-score');
+  const descEl = document.getElementById('fng-desc');
+  if (scoreEl) {
+    const score = data.fear_greed_score || 50;
+    scoreEl.textContent = `${score} / 100`;
+    scoreEl.style.color = score > 60 ? 'var(--accent-green)' : (score < 40 ? 'var(--accent-red)' : 'var(--accent-yellow)');
+  }
+  if (descEl) {
+    descEl.innerHTML = `Classification: <strong>${data.sentiment_classification || 'Neutral'}</strong> | Whale Sentiment: <strong>${data.whale_sentiment || 'Active'}</strong> | Risk: <strong>${data.market_risk_index || 'Moderate'}</strong>`;
+  }
+}
+
 // Render Leaderboard & Bot Controls
 function renderLeaderboard(bots) {
   if (!bots || !bots.length) return;
@@ -94,6 +175,7 @@ function renderLeaderboard(bots) {
   const container = document.getElementById('leaderboard-container');
   let html = '';
   let totalArenaPnl = 0;
+  let totalCap = 0;
 
   bots.forEach((bot, index) => {
     const rank = index + 1;
@@ -103,6 +185,7 @@ function renderLeaderboard(bots) {
     const pnlSign = bot.total_pnl >= 0 ? '+' : '';
     const isActive = bot.is_active !== false;
     totalArenaPnl += bot.total_pnl;
+    totalCap += bot.current_equity;
 
     html += `
       <div class="bot-card ${isActive ? '' : 'paused'}" id="card-${bot.bot_id}">
@@ -158,7 +241,153 @@ function renderLeaderboard(bots) {
   }
   const countEl = document.getElementById('header-bot-count');
   if (countEl) {
-    countEl.textContent = `${bots.length} Bots`;
+    countEl.textContent = `${bots.length} Bots ($${totalCap.toFixed(0)})`;
+  }
+}
+
+// Candlestick Chart (Tab 3)
+async function loadCandlestickChart(symbol) {
+  try {
+    const candles = await fetch(`/api/ohlcv/${encodeURIComponent(symbol)}`).then(r => r.json());
+    if (!candles || !candles.length) return;
+
+    const ctx = document.getElementById('candleChartCanvas');
+    if (!ctx) return;
+
+    if (candleChartInstance) {
+      candleChartInstance.destroy();
+    }
+
+    const labels = candles.map(c => new Date(c.time).toLocaleTimeString());
+    const closePrices = candles.map(c => c.close);
+    const highPrices = candles.map(c => c.high);
+    const lowPrices = candles.map(c => c.low);
+
+    candleChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: `${symbol} Price`,
+            data: closePrices,
+            borderColor: '#06b6d4',
+            backgroundColor: 'rgba(6, 182, 212, 0.1)',
+            fill: true,
+            tension: 0.1,
+            pointRadius: 2
+          },
+          {
+            label: 'High Price',
+            data: highPrices,
+            borderColor: 'rgba(16, 185, 129, 0.4)',
+            borderDash: [4, 4],
+            pointRadius: 0,
+            fill: false
+          },
+          {
+            label: 'Low Price',
+            data: lowPrices,
+            borderColor: 'rgba(239, 68, 68, 0.4)',
+            borderDash: [4, 4],
+            pointRadius: 0,
+            fill: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+          y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', callback: v => `$${v.toFixed(2)}` } }
+        },
+        plugins: { legend: { labels: { color: '#f8fafc', font: { family: 'JetBrains Mono' } } } }
+      }
+    });
+  } catch (e) {
+    console.error("Candle chart load error", e);
+  }
+}
+
+// Backtest Execution (Tab 5)
+async function handleRunBacktest(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btn-run-bt');
+  btn.textContent = "⏳ Running Vectorized Simulation...";
+  btn.disabled = true;
+
+  const payload = {
+    strategy_type: document.getElementById('bt-strat-type').value,
+    symbol: document.getElementById('bt-symbol').value,
+    take_profit_pct: parseFloat(document.getElementById('bt-tp').value),
+    stop_loss_pct: parseFloat(document.getElementById('bt-sl').value),
+    stake_usd: parseFloat(document.getElementById('bt-stake').value)
+  };
+
+  try {
+    const res = await fetch('/api/backtest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.json());
+
+    btn.textContent = "⚡ Execute 30-Day Backtest";
+    btn.disabled = false;
+
+    const resBox = document.getElementById('bt-results-content');
+    if (res.error) {
+      resBox.innerHTML = `<p style="color:var(--accent-red);">${res.error}</p>`;
+      return;
+    }
+
+    const pnlClass = res.total_pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
+    const pnlSign = res.total_pnl >= 0 ? '+' : '';
+
+    resBox.innerHTML = `
+      <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-bottom:18px;">
+        <div class="bt-stat-badge">
+          <div class="num ${pnlClass}">${pnlSign}$${res.total_pnl.toFixed(2)}</div>
+          <div class="lbl">Total PnL (${pnlSign}${res.roi_pct.toFixed(2)}%)</div>
+        </div>
+        <div class="bt-stat-badge">
+          <div class="num">${res.win_rate.toFixed(1)}%</div>
+          <div class="lbl">Win Rate (${res.total_trades} Trades)</div>
+        </div>
+        <div class="bt-stat-badge">
+          <div class="num">${res.profit_factor.toFixed(2)}</div>
+          <div class="lbl">Profit Factor</div>
+        </div>
+        <div class="bt-stat-badge">
+          <div class="num pnl-neg">${res.max_drawdown.toFixed(2)}%</div>
+          <div class="lbl">Max Drawdown</div>
+        </div>
+      </div>
+
+      <h4 style="font-size:13px; color:var(--text-muted); margin-bottom:8px;">Recent Simulated Trades:</h4>
+      <div class="log-table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr><th>Entry Time</th><th>Entry Price</th><th>Exit Price</th><th>Trade PnL</th><th>Outcome</th></tr>
+          </thead>
+          <tbody>
+            ${res.trades.map(t => `
+              <tr>
+                <td style="color:var(--text-muted);">${new Date(t.entry_time).toLocaleDateString()}</td>
+                <td>$${t.entry_price.toFixed(2)}</td>
+                <td>$${t.exit_price.toFixed(2)}</td>
+                <td class="${t.is_win ? 'pnl-pos' : 'pnl-neg'}">${t.pnl >= 0 ? '+' : ''}$${t.pnl.toFixed(2)} (${t.pnl_pct}%)</td>
+                <td>${t.is_win ? '🟢 WIN' : '🔴 LOSS'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    btn.textContent = "⚡ Execute 30-Day Backtest";
+    btn.disabled = false;
+    alert("Backtest error: " + err);
   }
 }
 
@@ -172,7 +401,7 @@ async function toggleBotStatus(botId, newActiveState) {
     }).then(r => r.json());
     fetchInitialData();
   } catch (e) {
-    alert("Error toggling bot status: " + e);
+    alert("Error toggling bot: " + e);
   }
 }
 
@@ -199,7 +428,7 @@ async function liquidateBot(botId) {
   }
 }
 
-// Modal Handlers
+// Modals
 function openModal(modalId) { document.getElementById(modalId).classList.add('active'); }
 function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
 
@@ -316,18 +545,86 @@ async function handleManualTradeSubmit(e) {
   }
 }
 
-// Visual Analytics & Pie Charts (Tab 2)
+// Multi-Coin Manager Modal
+function openPairsModal() {
+  renderPairsList();
+  openModal('pairs-modal');
+}
+
+function renderPairsList() {
+  const container = document.getElementById('active-pairs-list');
+  if (!container) return;
+  container.innerHTML = activePairsCache.map(p => `
+    <div style="background:rgba(255,255,255,0.06); padding:6px 12px; border-radius:6px; font-family:'JetBrains Mono'; font-size:12px; display:flex; align-items:center; gap:8px;">
+      <span>${p}</span>
+      <span onclick="handleRemovePair('${p}')" style="cursor:pointer; color:var(--accent-red); font-weight:800;">&times;</span>
+    </div>
+  `).join('');
+}
+
+async function handleAddPair() {
+  const input = document.getElementById('add-pair-input');
+  const val = input.value.trim().toUpperCase();
+  if (!val) return;
+  const res = await fetch('/api/pairs/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbol: val })
+  }).then(r => r.json());
+  if (res.success) {
+    activePairsCache = res.pairs;
+    renderPairsList();
+    input.value = '';
+  }
+}
+
+async function handleRemovePair(pair) {
+  const res = await fetch('/api/pairs/remove', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbol: pair })
+  }).then(r => r.json());
+  if (res.success) {
+    activePairsCache = res.pairs;
+    renderPairsList();
+  }
+}
+
+// Telegram Setup Modal
+function openTelegramModal() { openModal('telegram-modal'); }
+
+async function handleSaveTelegram() {
+  const token = document.getElementById('tg-token').value.trim();
+  const chat_id = document.getElementById('tg-chat-id').value.trim();
+  if (!token || !chat_id) {
+    alert("Please enter both Bot Token and Chat ID.");
+    return;
+  }
+  const res = await fetch('/api/telegram/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, chat_id })
+  }).then(r => r.json());
+
+  if (res.success) {
+    closeModal('telegram-modal');
+    alert("✔ " + res.message);
+  } else {
+    alert("Error: " + res.message);
+  }
+}
+
+// Visual Analytics & Pie Charts (Tab 4)
 function initAnalyticsCharts() {
-  // 1. Asset Allocation Pie Chart
   const allocCtx = document.getElementById('allocationPieChart');
   if (allocCtx) {
     allocationChartInstance = new Chart(allocCtx, {
       type: 'doughnut',
       data: {
-        labels: ['Liquid USDT', 'SOL', 'ETH', 'BTC', 'AVAX', 'NEAR'],
+        labels: ['Liquid USDT', 'SOL', 'ETH', 'BTC', 'AVAX', 'NEAR', 'SUI', 'Polymarket Shares'],
         datasets: [{
-          data: [250, 0, 0, 0, 0, 0],
-          backgroundColor: ['#3b82f6', '#8b5cf6', '#06b6d4', '#f59e0b', '#ef4444', '#10b981'],
+          data: [300, 0, 0, 0, 0, 0, 0, 0],
+          backgroundColor: ['#3b82f6', '#8b5cf6', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#ec4899', '#a855f7'],
           borderWidth: 2,
           borderColor: '#111927'
         }]
@@ -340,7 +637,6 @@ function initAnalyticsCharts() {
     });
   }
 
-  // 2. Win vs Loss Donut Chart
   const winLossCtx = document.getElementById('winLossDonutChart');
   if (winLossCtx) {
     winLossChartInstance = new Chart(winLossCtx, {
@@ -362,16 +658,15 @@ function initAnalyticsCharts() {
     });
   }
 
-  // 3. Strategy Contribution Bar Chart
   const barCtx = document.getElementById('strategyBarChart');
   if (barCtx) {
     strategyBarChartInstance = new Chart(barCtx, {
       type: 'bar',
       data: {
-        labels: ['AlphaTrend', 'MeanRevert', 'Breakout', 'Grid', 'SmartMoney'],
+        labels: ['AlphaTrend', 'MeanRevert', 'Breakout', 'Grid', 'SmartMoney', 'PolyPredictor'],
         datasets: [{
           label: 'Total PnL ($)',
-          data: [0, 0, 0, 0, 0],
+          data: [0, 0, 0, 0, 0, 0],
           backgroundColor: BASE_BOT_COLORS,
           borderRadius: 6
         }]
@@ -381,7 +676,7 @@ function initAnalyticsCharts() {
         maintainAspectRatio: false,
         scales: {
           x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 } } },
-          y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', callback: (v) => `$${v}` } }
+          y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', callback: v => `$${v}` } }
         },
         plugins: { legend: { display: false } }
       }
@@ -392,7 +687,6 @@ function initAnalyticsCharts() {
 function updateAnalyticsCharts() {
   if (!activeBotsCache.length) return;
 
-  // Calculate totals
   let totalCap = 0;
   let totalAvailable = 0;
   let totalWins = 0;
@@ -408,11 +702,13 @@ function updateAnalyticsCharts() {
     totalLosses += b.losing_trades;
   });
 
-  const pairAlloc = { 'SOL/USDT': 0, 'ETH/USDT': 0, 'BTC/USDT': 0, 'AVAX/USDT': 0, 'NEAR/USDT': 0 };
+  const pairAlloc = { 'SOL/USDT': 0, 'ETH/USDT': 0, 'BTC/USDT': 0, 'AVAX/USDT': 0, 'NEAR/USDT': 0, 'SUI/USDT': 0, 'POLY': 0 };
   activePositionsCache.forEach(p => {
     const sym = p.symbol;
     if (pairAlloc[sym] !== undefined) {
       pairAlloc[sym] += p.cost_basis || 0;
+    } else {
+      pairAlloc['POLY'] += p.cost_basis || 0;
     }
   });
 
@@ -422,7 +718,6 @@ function updateAnalyticsCharts() {
     else if (t.realized_pnl < 0) grossLoss += Math.abs(t.realized_pnl);
   });
 
-  // Update KPI Cards
   const kpiCap = document.getElementById('kpi-total-capital');
   if (kpiCap) kpiCap.textContent = `$${totalCap.toFixed(2)}`;
 
@@ -444,7 +739,6 @@ function updateAnalyticsCharts() {
   const kpiFees = document.getElementById('kpi-fees-paid');
   if (kpiFees) kpiFees.textContent = `Est. Fees: $${(totalVol * 0.00075).toFixed(3)}`;
 
-  // 1. Update Allocation Donut Chart
   if (allocationChartInstance) {
     allocationChartInstance.data.datasets[0].data = [
       Math.max(0, totalAvailable),
@@ -452,18 +746,18 @@ function updateAnalyticsCharts() {
       pairAlloc['ETH/USDT'] || 0,
       pairAlloc['BTC/USDT'] || 0,
       pairAlloc['AVAX/USDT'] || 0,
-      pairAlloc['NEAR/USDT'] || 0
+      pairAlloc['NEAR/USDT'] || 0,
+      pairAlloc['SUI/USDT'] || 0,
+      pairAlloc['POLY'] || 0
     ];
     allocationChartInstance.update();
   }
 
-  // 2. Update Win/Loss Chart
   if (winLossChartInstance) {
     winLossChartInstance.data.datasets[0].data = [totalWins || 1, totalLosses || (totalWins > 0 ? 0 : 1)];
     winLossChartInstance.update();
   }
 
-  // 3. Update Strategy Bar Chart
   if (strategyBarChartInstance) {
     strategyBarChartInstance.data.labels = activeBotsCache.map(b => b.name);
     strategyBarChartInstance.data.datasets[0].data = activeBotsCache.map(b => b.total_pnl);
@@ -508,7 +802,6 @@ function renderResearch(overview) {
   }
 }
 
-// Render Research Log Table
 function renderResearchLogs(logs) {
   const tbody = document.getElementById('research-log-rows');
   if (!tbody || !logs || !logs.length) return;
@@ -526,7 +819,6 @@ function renderResearchLogs(logs) {
   tbody.innerHTML = html;
 }
 
-// Render Self-Improvement Adjustments
 function renderAdjustments(adjustments) {
   const tbody = document.getElementById('adjustments-rows');
   if (!tbody || !adjustments || !adjustments.length) return;
@@ -547,7 +839,6 @@ function renderAdjustments(adjustments) {
   tbody.innerHTML = html;
 }
 
-// Render Positions Table
 function renderPositions(positions) {
   const tbody = document.getElementById('open-positions-rows');
   if (!tbody) return;
@@ -573,7 +864,6 @@ function renderPositions(positions) {
   tbody.innerHTML = html;
 }
 
-// Render Closed Trades
 function renderTrades(trades) {
   const tbody = document.getElementById('trades-rows');
   if (!tbody) return;
@@ -602,11 +892,10 @@ function renderTrades(trades) {
   tbody.innerHTML = html;
 }
 
-// Chart.js Equity Curve
+// Equity Chart
 function initEquityChart() {
   const ctx = document.getElementById('equityChart');
   if (!ctx) return;
-
   chartInstance = new Chart(ctx, {
     type: 'line',
     data: { labels: [], datasets: [] },
@@ -616,11 +905,7 @@ function initEquityChart() {
       interaction: { mode: 'index', intersect: false },
       scales: {
         x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
-        y: {
-          grid: { color: '#1e293b' },
-          ticks: { color: '#94a3b8', callback: (v) => `$${v.toFixed(2)}` },
-          title: { display: true, text: 'Portfolio Equity ($ USD)', color: '#94a3b8' }
-        }
+        y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', callback: v => `$${v.toFixed(2)}` }, title: { display: true, text: 'Portfolio Equity ($ USD)', color: '#94a3b8' } }
       },
       plugins: { legend: { labels: { color: '#f8fafc', font: { family: 'JetBrains Mono' } } } }
     }
@@ -649,7 +934,6 @@ async function updateEquityChartData() {
         fill: false
       };
     });
-
     chartInstance.update();
   } catch (e) {
     console.error("Chart update error", e);
@@ -673,21 +957,14 @@ async function openLiveSwitchModal() {
           <span>Simulated PnL: <strong class="pnl-pos">+$${winner.total_pnl.toFixed(2)}</strong></span>
         </div>
       </div>
-
       <p style="font-size:13px; color:var(--text-muted); margin-bottom:10px;">
-        To deploy this exact winning configuration with real <strong>$50.00 capital</strong> on Binance or Bybit:
+        To deploy this exact winning configuration with real <strong>$50.00 capital</strong>:
       </p>
-
       <div class="code-box">
-        # 1. Export ready-to-run live bot script<br>
         python live_switch.py --deploy --capital 50 --api-key YOUR_KEY --api-secret YOUR_SECRET
-      </div>
-
-      <div style="margin-top:16px; font-size:12px; color:var(--accent-cyan);">
-        🔒 Security Note: When creating your exchange API key, enable only <strong>Spot Trading</strong> and keep <strong>Withdrawals DISABLED</strong>.
       </div>
     `;
   } catch (e) {
-    body.innerHTML = `<p style="color:var(--accent-red);">Failed to export winner metrics. Please ensure tournament is active.</p>`;
+    body.innerHTML = `<p style="color:var(--accent-red);">Failed to export winner metrics. Ensure tournament is active.</p>`;
   }
 }

@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="CryptoArena">
-  <title>CryptoArena 50X - Autonomous Bot Championship & Analytics Hub</title>
+  <title>CryptoArena 50X - Multi-Bot Championship & Prediction Terminal</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,7 +22,7 @@
         <div class="logo-icon">⚡</div>
         <div>
           <h1>CRYPTO<span class="highlight">ARENA</span> 50X</h1>
-          <span class="sub-brand">Institutional Multi-Bot Championship & Visual Analytics Hub</span>
+          <span class="sub-brand">Institutional Multi-Bot Championship & Polymarket Arbitrage Terminal</span>
         </div>
       </div>
 
@@ -33,7 +33,7 @@
         </div>
         <div class="metric-card">
           <span class="metric-label">ACTIVE BOTS</span>
-          <span class="metric-value" id="header-bot-count">5 Bots</span>
+          <span class="metric-value" id="header-bot-count">6 Bots ($300)</span>
         </div>
         <div class="metric-card">
           <span class="metric-label">TOTAL PnL</span>
@@ -41,10 +41,16 @@
         </div>
         <div class="header-actions">
           <button class="btn-action btn-add-bot" onclick="openCreateBotModal()">
-            ➕ Deploy New Bot
+            ➕ Deploy Bot
+          </button>
+          <button class="btn-action btn-pairs" onclick="openPairsModal()">
+            🪙 Pairs
+          </button>
+          <button class="btn-action btn-telegram" onclick="openTelegramModal()">
+            📱 Telegram
           </button>
           <button class="btn-action btn-live-switch" onclick="openLiveSwitchModal()">
-            🚀 1-Click Live Switch ($50)
+            🚀 Live $50 Switch
           </button>
         </div>
       </div>
@@ -57,27 +63,31 @@
       <div class="ticker-item"><span class="sym">BTC/USDT</span> <span class="price">$---</span></div>
       <div class="ticker-item"><span class="sym">AVAX/USDT</span> <span class="price">$---</span></div>
       <div class="ticker-item"><span class="sym">NEAR/USDT</span> <span class="price">$---</span></div>
+      <div class="ticker-item"><span class="sym">SUI/USDT</span> <span class="price">$---</span></div>
+      <div class="ticker-item"><span class="sym">DOGE/USDT</span> <span class="price">$---</span></div>
     </div>
 
     <!-- Navigation Tabs -->
     <nav class="nav-tabs">
       <button class="tab-btn active" onclick="switchTab('leaderboard')">🏆 Bot Command Center</button>
+      <button class="tab-btn" onclick="switchTab('polymarket')">🔮 Polymarket Terminal</button>
+      <button class="tab-btn" onclick="switchTab('candlestick')">🕯️ Interactive Candlestick Charts</button>
       <button class="tab-btn" onclick="switchTab('analytics')">📊 Visual Analytics & Pie Charts</button>
-      <button class="tab-btn" onclick="switchTab('chart')">📈 Performance Curves</button>
+      <button class="tab-btn" onclick="switchTab('backtest')">🧪 30-Day Backtester</button>
       <button class="tab-btn" onclick="switchTab('research')">🧠 Autonomous Deep Research</button>
       <button class="tab-btn" onclick="switchTab('learning')">⚙️ Self-Improvement AI</button>
       <button class="tab-btn" onclick="switchTab('trades')">⚡ Live Trades & Positions</button>
     </nav>
 
-    <!-- Tab Content -->
+    <!-- Main Content Area -->
     <main class="main-content">
       
-      <!-- TAB 1: LEADERBOARD & BOT CONTROLS -->
+      <!-- TAB 1: LEADERBOARD & BOT COMMAND CENTER -->
       <section id="tab-leaderboard" class="tab-pane active">
         <div class="section-title-row">
           <div>
-            <h2>🏆 Bot Championship & Real-Time Control Matrix</h2>
-            <span class="caption">Monitor performance, adjust parameters on the fly, or pause/resume bots with 1 click</span>
+            <h2>🏆 Multi-Bot Championship & Real-Time Matrix</h2>
+            <span class="caption">6 autonomous bots ($50 each): Trend, Scalper, Breakout, Grid, Whale Tracker, and Polymarket Arbitrage</span>
           </div>
           <div class="quick-controls-bar">
             <button class="btn-ctrl" onclick="toggleAllBots(true)">▶️ Resume All</button>
@@ -90,7 +100,57 @@
         </div>
       </section>
 
-      <!-- TAB 2: VISUAL ANALYTICS & PIE CHARTS (NEW) -->
+      <!-- TAB 2: POLYMARKET PREDICTION MARKET TERMINAL (NEW) -->
+      <section id="tab-polymarket" class="tab-pane">
+        <div class="section-title-row">
+          <div>
+            <h2>🔮 Polymarket Live Events & Probability Arbitrage (Bot 6)</h2>
+            <span class="caption">Real-time prediction markets, implied odds vs spot momentum, and automated YES/NO trading</span>
+          </div>
+        </div>
+
+        <div class="poly-overview-grid">
+          <div class="poly-info-card">
+            <h3>🤖 PolyPredictor Strategy Mechanics</h3>
+            <p><strong>Bot 6</strong> continuously scans live Polymarket orderbooks. When quantitative spot technical momentum diverges by >10% from market share prices, it takes high-probability directional positions.</p>
+            <div style="margin-top:12px; font-family:'JetBrains Mono'; font-size:12px; color:var(--accent-cyan);">
+              • Allocated Capital: $50.00 | Stake per Event: $20.00 | Target Margin: +35%
+            </div>
+          </div>
+        </div>
+
+        <div class="poly-markets-grid" id="poly-markets-container">
+          <div class="loading-state">Fetching live Polymarket prediction events...</div>
+        </div>
+      </section>
+
+      <!-- TAB 3: CANDLESTICK CHARTS (NEW) -->
+      <section id="tab-candlestick" class="tab-pane">
+        <div class="section-title-row">
+          <div>
+            <h2>🕯️ Real-Time Candlestick Chart & Signal Markers</h2>
+            <span class="caption">Live OHLCV price action with bot entry and exit indicators</span>
+          </div>
+          <div class="chart-pair-selector">
+            <label>Select Pair: </label>
+            <select id="candlestick-pair-select" onchange="loadCandlestickChart(this.value)">
+              <option value="SOL/USDT">SOL/USDT</option>
+              <option value="ETH/USDT">ETH/USDT</option>
+              <option value="BTC/USDT">BTC/USDT</option>
+              <option value="AVAX/USDT">AVAX/USDT</option>
+              <option value="NEAR/USDT">NEAR/USDT</option>
+              <option value="SUI/USDT">SUI/USDT</option>
+              <option value="DOGE/USDT">DOGE/USDT</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="chart-wrapper" style="height: 480px;">
+          <canvas id="candleChartCanvas"></canvas>
+        </div>
+      </section>
+
+      <!-- TAB 4: VISUAL ANALYTICS & PIE CHARTS -->
       <section id="tab-analytics" class="tab-pane">
         <div class="section-title-row">
           <div>
@@ -102,9 +162,9 @@
         <!-- Key Metrics Cards -->
         <div class="analytics-kpi-grid">
           <div class="kpi-card">
-            <span class="kpi-label">TOTAL ALLOCATED CAPITAL</span>
-            <span class="kpi-val" id="kpi-total-capital">$250.00</span>
-            <span class="kpi-sub">$50.00 / bot</span>
+            <span class="kpi-label">TOTAL ARENA CAPITAL</span>
+            <span class="kpi-val" id="kpi-total-capital">$300.00</span>
+            <span class="kpi-sub">$50.00 / bot across 6 bots</span>
           </div>
           <div class="kpi-card">
             <span class="kpi-label">OVERALL WIN RATE</span>
@@ -126,7 +186,7 @@
         <!-- Visual Charts Grid (Pie & Donut Charts) -->
         <div class="charts-grid-3">
           <div class="chart-card">
-            <h3>🥧 Asset Allocation Breakdown</h3>
+            <h3>🥧 Portfolio Asset Allocation</h3>
             <div class="chart-box">
               <canvas id="allocationPieChart"></canvas>
             </div>
@@ -148,22 +208,76 @@
         </div>
       </section>
 
-      <!-- TAB 3: EQUITY CURVE CHART -->
-      <section id="tab-chart" class="tab-pane">
+      <!-- TAB 5: BACKTEST PLAYGROUND (NEW) -->
+      <section id="tab-backtest" class="tab-pane">
         <div class="section-title-row">
-          <h2>📈 Multi-Bot Real-Time Equity Curves</h2>
-          <span class="caption">Simulated PnL curves incorporating 0.075% fee, slippage, and compounding balance</span>
+          <div>
+            <h2>🧪 30-Day Strategy Historical Backtest Simulator</h2>
+            <span class="caption">Simulate any strategy on 30 days of real historical OHLCV data with fees and slippage</span>
+          </div>
         </div>
-        <div class="chart-wrapper">
-          <canvas id="equityChart"></canvas>
+
+        <div class="backtest-layout">
+          <!-- Backtest Controls Form -->
+          <div class="backtest-form-card">
+            <h3>⚙️ Backtest Configuration</h3>
+            <form onsubmit="handleRunBacktest(event)">
+              <div class="form-group">
+                <label>Strategy Preset</label>
+                <select id="bt-strat-type">
+                  <option value="trend">AlphaTrend (EMA Ribbon + SuperTrend + ADX)</option>
+                  <option value="mean_revert">MeanRevert (Bollinger + RSI Oversold)</option>
+                  <option value="breakout">BreakoutHunter (Donchian 20-High Breakout)</option>
+                  <option value="grid">AdaptiveGrid (Micro-Grid Market Maker)</option>
+                  <option value="smart_money">SmartMoney (Whale Inflow Momentum)</option>
+                  <option value="poly_predictor">PolyPredictor (Probability Arbitrage)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Trading Pair</label>
+                <select id="bt-symbol">
+                  <option value="SOL/USDT">SOL/USDT</option>
+                  <option value="ETH/USDT">ETH/USDT</option>
+                  <option value="BTC/USDT">BTC/USDT</option>
+                  <option value="AVAX/USDT">AVAX/USDT</option>
+                  <option value="NEAR/USDT">NEAR/USDT</option>
+                  <option value="SUI/USDT">SUI/USDT</option>
+                  <option value="DOGE/USDT">DOGE/USDT</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Take Profit (%)</label>
+                  <input type="number" id="bt-tp" value="4.5" step="0.5" min="0.5" required>
+                </div>
+                <div class="form-group">
+                  <label>Stop Loss (%)</label>
+                  <input type="number" id="bt-sl" value="2.5" step="0.5" min="0.5" required>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Stake per Trade ($ USD)</label>
+                <input type="number" id="bt-stake" value="25.0" step="5.0" min="10.0" required>
+              </div>
+              <button type="submit" class="btn-submit" id="btn-run-bt">⚡ Execute 30-Day Backtest</button>
+            </form>
+          </div>
+
+          <!-- Backtest Results Display -->
+          <div class="backtest-results-card">
+            <h3>📈 Backtest Simulation Results</h3>
+            <div id="bt-results-content">
+              <p style="color:var(--text-muted); margin-top:20px;">Select parameters and click "Execute 30-Day Backtest" to run simulation.</p>
+            </div>
+          </div>
         </div>
       </section>
 
-      <!-- TAB 4: AUTONOMOUS RESEARCH -->
+      <!-- TAB 6: AUTONOMOUS RESEARCH & SENTIMENT RADAR -->
       <section id="tab-research" class="tab-pane">
         <div class="section-title-row">
-          <h2>🧠 Autonomous Market & Smart Wallet Intelligence</h2>
-          <span class="caption">Real-time regime classification and on-chain whale accumulation scanner</span>
+          <h2>🧠 Autonomous Deep Research & Crypto Sentiment Radar</h2>
+          <span class="caption">Real-time regime classification, Alternative.me Fear & Greed index, and whale flows</span>
         </div>
 
         <div class="research-grid">
@@ -173,10 +287,13 @@
             <div id="regime-content" class="card-body">Scanning market dynamics...</div>
           </div>
 
-          <!-- Smart Wallet On-Chain Card -->
+          <!-- Sentiment & Fear/Greed Card (NEW) -->
           <div class="research-card">
-            <h3>🐋 Smart Money & Whale Inflows</h3>
-            <div id="smart-wallet-content" class="card-body">Analyzing top profitable wallets...</div>
+            <h3>🌡️ Fear & Greed Sentiment Radar</h3>
+            <div id="sentiment-content" class="card-body">
+              <div style="font-size:24px; font-weight:800; color:var(--accent-yellow); margin-bottom:6px;" id="fng-score">62 / 100</div>
+              <div style="color:var(--text-muted); font-size:13px;" id="fng-desc">Classification: <strong>Greed</strong> | Whale Flow: <strong>Net Inflow Accumulation</strong></div>
+            </div>
           </div>
         </div>
 
@@ -199,7 +316,7 @@
         </div>
       </section>
 
-      <!-- TAB 5: SELF-IMPROVEMENT AI -->
+      <!-- TAB 7: SELF-IMPROVEMENT AI -->
       <section id="tab-learning" class="tab-pane">
         <div class="section-title-row">
           <h2>⚙️ Self-Improvement & Parameter Adaptation Feed</h2>
@@ -225,7 +342,7 @@
         </div>
       </section>
 
-      <!-- TAB 6: TRADES & POSITIONS -->
+      <!-- TAB 8: TRADES & POSITIONS -->
       <section id="tab-trades" class="tab-pane">
         <div class="split-tables">
           <div class="table-card">
@@ -298,6 +415,7 @@
               <option value="breakout">Donchian 20-High + Volume Surge Expansion</option>
               <option value="grid">Dynamic ATR Geometric Micro-Grid</option>
               <option value="smart_money">On-Chain Whale Flow & Smart Wallet Follower</option>
+              <option value="poly_predictor">Polymarket Probability & Statistical Arbitrage</option>
             </select>
           </div>
           <div class="form-row">
@@ -380,6 +498,8 @@
               <option value="BTC/USDT">BTC/USDT</option>
               <option value="AVAX/USDT">AVAX/USDT</option>
               <option value="NEAR/USDT">NEAR/USDT</option>
+              <option value="SUI/USDT">SUI/USDT</option>
+              <option value="DOGE/USDT">DOGE/USDT</option>
             </select>
           </div>
           <div class="form-row">
@@ -400,11 +520,56 @@
       </div>
     </div>
 
-    <!-- MODAL 4: 1-CLICK LIVE SWITCH -->
+    <!-- MODAL 4: MULTI-COIN MANAGER (NEW) -->
+    <div id="pairs-modal" class="modal-overlay">
+      <div class="modal-box">
+        <div class="modal-header">
+          <h2>🪙 Manage Active Crypto Trading Pairs</h2>
+          <button class="close-btn" onclick="closeModal('pairs-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Add New Trading Pair</label>
+            <div style="display:flex; gap:10px;">
+              <input type="text" id="add-pair-input" placeholder="e.g. PEPE/USDT or BNB/USDT" style="flex:1;">
+              <button class="btn-action btn-add-bot" onclick="handleAddPair()">➕ Add Pair</button>
+            </div>
+          </div>
+          <h4 style="margin: 16px 0 10px 0; font-size:13px; color:var(--text-muted);">Currently Active Trading Pairs:</h4>
+          <div id="active-pairs-list" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 5: TELEGRAM ALERTS SETUP (NEW) -->
+    <div id="telegram-modal" class="modal-overlay">
+      <div class="modal-box">
+        <div class="modal-header">
+          <h2>📱 Instant Telegram Trade Alerts Setup</h2>
+          <button class="close-btn" onclick="closeModal('telegram-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">
+            Receive real-time instant alerts on your phone whenever any bot enters a trade, hits Take-Profit, or triggers a Stop-Loss!
+          </p>
+          <div class="form-group">
+            <label>Telegram Bot Token (from @BotFather)</label>
+            <input type="text" id="tg-token" placeholder="e.g. 123456789:ABCdefGHIjklmnOPQRstuvWXYZ">
+          </div>
+          <div class="form-group">
+            <label>Telegram Chat ID (from @userinfobot)</label>
+            <input type="text" id="tg-chat-id" placeholder="e.g. 987654321">
+          </div>
+          <button class="btn-submit" onclick="handleSaveTelegram()">📲 Save & Send Test Notification</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 6: 1-CLICK LIVE SWITCH -->
     <div id="live-switch-modal" class="modal-overlay">
       <div class="modal-box">
         <div class="modal-header">
-          <h2>🚀 Deploy #1 Champion Strategy to Live $50</h2>
+          <h2>🚀 Deploy Champion Strategy to Live $50</h2>
           <button class="close-btn" onclick="closeModal('live-switch-modal')">&times;</button>
         </div>
         <div class="modal-body" id="modal-body-content">

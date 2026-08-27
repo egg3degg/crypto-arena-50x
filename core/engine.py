@@ -19,8 +19,12 @@ try:
     from strategies.breakout_hunter import BreakoutHunterStrategy
     from strategies.adaptive_grid import AdaptiveGridStrategy
     from strategies.smart_money import SmartMoneyTrackerStrategy
+    from strategies.polymarket_predictor import PolymarketPredictorStrategy
     from research.regime_analyzer import MarketRegimeAnalyzer
     from research.smart_wallet_tracker import SmartWalletTracker
+    from research.sentiment_analyzer import SentimentAnalyzer
+    from research.polymarket_feed import PolymarketFeed
+    from core.backtester import StrategyBacktester
     from learning.self_improver import SelfImprovementEngine
     from notifications.notifier import ArenaNotifier
     from config import config
@@ -28,14 +32,18 @@ except (ImportError, ValueError):
     from .database import ArenaDatabase
     from .simulator import PaperWallet
     from .market_feed import MarketFeed
+    from .backtester import StrategyBacktester
     from ..strategies.base_strategy import BaseStrategy, Signal
     from ..strategies.alpha_trend import AlphaTrendStrategy
     from ..strategies.mean_revert import MeanRevertStrategy
     from ..strategies.breakout_hunter import BreakoutHunterStrategy
     from ..strategies.adaptive_grid import AdaptiveGridStrategy
     from ..strategies.smart_money import SmartMoneyTrackerStrategy
+    from ..strategies.polymarket_predictor import PolymarketPredictorStrategy
     from ..research.regime_analyzer import MarketRegimeAnalyzer
     from ..research.smart_wallet_tracker import SmartWalletTracker
+    from ..research.sentiment_analyzer import SentimentAnalyzer
+    from ..research.polymarket_feed import PolymarketFeed
     from ..learning.self_improver import SelfImprovementEngine
     from ..notifications.notifier import ArenaNotifier
     from ..config import config
@@ -54,9 +62,15 @@ class TournamentEngine:
         )
         self.regime_analyzer = MarketRegimeAnalyzer(self.db)
         self.smart_wallet_tracker = SmartWalletTracker(self.db)
+        self.sentiment_analyzer = SentimentAnalyzer(self.db)
+        self.polymarket_feed = PolymarketFeed()
+        self.backtester = StrategyBacktester(self.market_feed)
         self.notifier = ArenaNotifier(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID)
 
-        # Initialize the 5 Bots, Wallets & Strategies
+        # Dynamic trading pairs
+        self.active_trading_pairs = list(config.TRADING_PAIRS)
+
+        # Initialize the 6 Bots, Wallets & Strategies
         self.bots: Dict[str, Dict[str, Any]] = {}
         self.strategies: Dict[str, BaseStrategy] = {}
         self.wallets: Dict[str, PaperWallet] = {}
@@ -108,6 +122,13 @@ class TournamentEngine:
                 'strategy_name': 'On-Chain Whale Flow & Smart Wallet Follower',
                 'description': 'Monitors top profitable DEX smart wallets and CEX whale inflows to mirror smart money accumulation.',
                 'strategy_class': SmartMoneyTrackerStrategy
+            },
+            {
+                'id': 'bot_6_polypredictor',
+                'name': 'PolyPredictor',
+                'strategy_name': 'Polymarket Event Probability & Statistical Arbitrage',
+                'description': 'Trades real Polymarket prediction markets by exploiting pricing misalignments between implied odds and spot momentum.',
+                'strategy_class': PolymarketPredictorStrategy
             }
         ]
 
@@ -136,13 +157,59 @@ class TournamentEngine:
             self.wallets[bot_id] = wallet
             self.strategies[bot_id] = strategy
 
+    def add_trading_pair(self, symbol: str) -> bool:
+        symbol = symbol.upper()
+        if symbol not in self.active_trading_pairs:
+            self.active_trading_pairs.append(symbol)
+            return True
+        return False
+
+    def remove_trading_pair(self, symbol: str) -> bool:
+        symbol = symbol.upper()
+        if symbol in self.active_trading_pairs and len(self.active_trading_pairs) > 1:
+            self.active_trading_pairs.remove(symbol)
+            return True
+        return False
+
+    def get_sentiment_data(self) -> Dict[str, Any]:
+        return self.sentiment_analyzer.get_latest_sentiment()
+
+    def get_polymarket_events(self) -> List[Dict[str, Any]]:
+        return self.polymarket_feed.fetch_crypto_prediction_markets()
+
+    def run_backtest(self, strategy_type: str, symbol: str, tp: float, sl: float, stake: float) -> Dict[str, Any]:
+        return self.backtester.run_backtest(
+            strategy_type=strategy_type,
+            symbol=symbol,
+            stake_usd=stake,
+            take_profit_pct=tp,
+            stop_loss_pct=sl
+        )
+
+    def get_ohlcv_chart(self, symbol: str) -> List[Dict[str, Any]]:
+        df = self.market_feed.fetch_ohlcv_dataframe(symbol)
+        if df is None or len(df) == 0:
+            return []
+        candles = []
+        for _, row in df.iterrows():
+            candles.append({
+                "time": str(row['timestamp']),
+                "open": float(row['open']),
+                "high": float(row['high']),
+                "low": float(row['low']),
+                "close": float(row['close']),
+                "volume": float(row['volume'])
+            })
+        return candles[-60:] # Last 60 candles for chart
+
     async def run_tick(self):
-        """Executes one evaluation cycle across all symbols and all 5 bots."""
+        """Executes one evaluation cycle across all symbols and all 6 bots."""
         symbol_dfs = {}
         tickers = {}
+        poly_events = self.get_polymarket_events()
 
-        # 1. Ingest Market Data
-        for symbol in config.TRADING_PAIRS:
+        # 1. Ingest Market Data for all Active Pairs
+        for symbol in self.active_trading_pairs:
             ticker = self.market_feed.fetch_ticker(symbol)
             df = self.market_feed.fetch_ohlcv_dataframe(symbol)
             tickers[symbol] = ticker
@@ -162,17 +229,29 @@ class TournamentEngine:
             open_positions = wallet.get_open_positions()
             avail_balance = wallet.available_balance
 
-            for symbol in config.TRADING_PAIRS:
-                df = symbol_dfs[symbol]
-                ticker = tickers[symbol]
+            for symbol in self.active_trading_pairs:
+                df = symbol_dfs.get(symbol)
+                ticker = tickers.get(symbol)
+                if df is None or ticker is None:
+                    continue
 
-                decision = strategy.evaluate(
-                    symbol=symbol,
-                    df=df,
-                    ticker=ticker,
-                    open_positions=open_positions,
-                    available_balance=avail_balance
-                )
+                if bot_id == 'bot_6_polypredictor':
+                    decision = strategy.evaluate(
+                        symbol=symbol,
+                        df=df,
+                        ticker=ticker,
+                        open_positions=open_positions,
+                        available_balance=avail_balance,
+                        polymarket_events=poly_events
+                    )
+                else:
+                    decision = strategy.evaluate(
+                        symbol=symbol,
+                        df=df,
+                        ticker=ticker,
+                        open_positions=open_positions,
+                        available_balance=avail_balance
+                    )
 
                 if decision.action == Signal.BUY:
                     pos = wallet.execute_buy(

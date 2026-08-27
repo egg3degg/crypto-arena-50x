@@ -233,6 +233,79 @@ async def reset_tournament_api(payload: Dict[str, Any] = None):
     engine.reset_tournament(capital)
     return {"success": True, "message": f"Tournament reset with ${capital} per bot"}
 
+# --- New Endpoints: Polymarket, Sentiment, Backtest, Charts & Pairs ---
+@app.get("/api/sentiment")
+async def get_sentiment():
+    if not engine:
+        return {}
+    return engine.get_sentiment_data()
+
+@app.get("/api/polymarket-events")
+async def get_polymarket_events():
+    if not engine:
+        return []
+    return engine.get_polymarket_events()
+
+@app.post("/api/backtest")
+async def run_backtest_endpoint(payload: Dict[str, Any]):
+    if not engine:
+        return JSONResponse(status_code=500, content={"error": "Engine not running"})
+    strat_type = payload.get("strategy_type", "trend")
+    symbol = payload.get("symbol", "SOL/USDT")
+    tp = float(payload.get("take_profit_pct", 4.5)) / 100.0
+    sl = float(payload.get("stop_loss_pct", 2.5)) / 100.0
+    stake = float(payload.get("stake_usd", 25.0))
+    result = engine.run_backtest(strat_type, symbol, tp, sl, stake)
+    return result
+
+@app.get("/api/ohlcv/{symbol:path}")
+async def get_ohlcv(symbol: str):
+    if not engine:
+        return []
+    return engine.get_ohlcv_chart(symbol)
+
+@app.get("/api/pairs")
+async def get_pairs():
+    if not engine:
+        return config.TRADING_PAIRS
+    return engine.active_trading_pairs
+
+@app.post("/api/pairs/add")
+async def add_pair(payload: Dict[str, Any]):
+    if not engine:
+        return JSONResponse(status_code=500, content={"error": "Engine not running"})
+    pair = payload.get("symbol", "").upper()
+    success = engine.add_trading_pair(pair)
+    return {"success": success, "pairs": engine.active_trading_pairs}
+
+@app.post("/api/pairs/remove")
+async def remove_pair(payload: Dict[str, Any]):
+    if not engine:
+        return JSONResponse(status_code=500, content={"error": "Engine not running"})
+    pair = payload.get("symbol", "").upper()
+    success = engine.remove_trading_pair(pair)
+    return {"success": success, "pairs": engine.active_trading_pairs}
+
+@app.post("/api/telegram/test")
+async def test_telegram(payload: Dict[str, Any] = None):
+    if not engine:
+        return JSONResponse(status_code=500, content={"error": "Engine not running"})
+    token = payload.get("token") if payload else config.TELEGRAM_BOT_TOKEN
+    chat_id = payload.get("chat_id") if payload else config.TELEGRAM_CHAT_ID
+    if token and chat_id:
+        engine.notifier.bot_token = token
+        engine.notifier.chat_id = chat_id
+        await engine.notifier.notify_trade(
+            bot_name="CryptoArena Master",
+            symbol="SOL/USDT",
+            side="BUY",
+            price=184.29,
+            quantity=0.135,
+            reason="⚡ Telegram Alert Integration Test: All Systems Operational!"
+        )
+        return {"success": True, "message": "Test notification dispatched to Telegram!"}
+    return {"success": False, "message": "Missing Telegram token or chat_id"}
+
 # WebSocket Endpoint
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
