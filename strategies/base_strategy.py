@@ -11,7 +11,7 @@ class Signal:
     HOLD = "HOLD"
 
 class StrategyDecision:
-    def __init__(self, action: str, symbol: str,
+    def __init__(self, action: str, symbol: str = "",
                  stake_usd: float = 25.0,
                  stop_loss_pct: Optional[float] = None,
                  take_profit_pct: Optional[float] = None,
