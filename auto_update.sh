@@ -37,7 +37,7 @@ import glob, re
 for f in glob.glob('$REPO_DIR/**/*.py', recursive=True):
     with open(f, 'r') as fp: content = fp.read()
     content = re.sub(r'from \.\.([a-zA-Z_]+)', r'from \1', content)
-    content = re.sub(r'from \.(database|simulator|market_feed)', r'from core.\1', content)
+    content = re.sub(r'from \.(database|simulator|market_feed|backtester)', r'from core.\1', content)
     with open(f, 'w') as fp: fp.write(content)
 "
 
