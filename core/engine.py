@@ -24,6 +24,8 @@ try:
     from strategies.indian_stock_meanrevert import DesiMeanRevertStrategy
     from strategies.hyperliquid_gold_silver import HyperliquidGoldSilverStrategy
     from strategies.polymarket_whale_copy import PolymarketWhaleCopyStrategy
+    from strategies.polymarket_leader_whale import PolyLeaderWhaleStrategy
+    from strategies.polymarket_micro_bot import PolyMicroBotHunterStrategy
     from research.regime_analyzer import MarketRegimeAnalyzer
     from research.smart_wallet_tracker import SmartWalletTracker
     from research.sentiment_analyzer import SentimentAnalyzer
@@ -50,6 +52,8 @@ except (ImportError, ValueError):
     from ..strategies.indian_stock_meanrevert import DesiMeanRevertStrategy
     from ..strategies.hyperliquid_gold_silver import HyperliquidGoldSilverStrategy
     from ..strategies.polymarket_whale_copy import PolymarketWhaleCopyStrategy
+    from ..strategies.polymarket_leader_whale import PolyLeaderWhaleStrategy
+    from ..strategies.polymarket_micro_bot import PolyMicroBotHunterStrategy
     from ..research.regime_analyzer import MarketRegimeAnalyzer
     from ..research.smart_wallet_tracker import SmartWalletTracker
     from ..research.sentiment_analyzer import SentimentAnalyzer
@@ -84,7 +88,7 @@ class TournamentEngine:
         # Dynamic trading pairs
         self.active_trading_pairs = list(config.TRADING_PAIRS)
 
-        # Initialize all 10 Bots, Wallets & Strategies
+        # Initialize all 12 Bots, Wallets & Strategies
         self.bots: Dict[str, Dict[str, Any]] = {}
         self.strategies: Dict[str, BaseStrategy] = {}
         self.wallets: Dict[str, PaperWallet] = {}
@@ -167,10 +171,24 @@ class TournamentEngine:
             },
             {
                 'id': 'bot_10_polywhalecopy',
-                'name': 'PolyWhaleCopy (Polymarket Whale Mirror)',
-                'strategy_name': 'Polymarket Smart Wallet Copy-Trader',
-                'description': 'Monitors top profitable Polymarket whales (>74% win rate) and auto-copies their high-conviction prediction bets.',
+                'name': 'PolyWhaleCopy (Micro-Smart Mirror)',
+                'strategy_name': 'Polymarket Micro-Smart Wallet Copy-Trader',
+                'description': 'Monitors top profitable Polymarket micro-wallets ($20-$40 bets, >80% win rate) and mirrors high-conviction predictions.',
                 'strategy_class': PolymarketWhaleCopyStrategy
+            },
+            {
+                'id': 'bot_11_polyleaderwhale',
+                'name': 'PolyLeaderWhale (Top-5 Leaderboard Mirror)',
+                'strategy_name': 'Polymarket Top Leaderboard Whale Copy-Trader',
+                'description': 'Replicates high-conviction macro bets from the top-5 all-time most profitable Polymarket leaderboard accounts.',
+                'strategy_class': PolyLeaderWhaleStrategy
+            },
+            {
+                'id': 'bot_12_polymicrobot',
+                'name': 'PolyMicroBotHunter ($5-$10 Algo Sniper)',
+                'strategy_name': 'Polymarket Automated Algo Bot Wallet Mirror',
+                'description': 'Auto-copies high-frequency automated algorithm bots executing $5-$10 micro-transactions with >83% win rate.',
+                'strategy_class': PolyMicroBotHunterStrategy
             }
         ]
 
@@ -184,14 +202,17 @@ class TournamentEngine:
                 initial_capital=config.INITIAL_CAPITAL_USD
             )
 
+            min_order = 5.00 if bot_id == 'bot_12_polymicrobot' else config.MIN_ORDER_USD
+            max_trades = 6 if bot_id == 'bot_12_polymicrobot' else config.MAX_OPEN_TRADES_PER_BOT
+
             wallet = PaperWallet(
                 bot_id=bot_id,
                 db=self.db,
                 initial_capital=config.INITIAL_CAPITAL_USD,
                 fee_rate=config.FEE_RATE,
                 slippage_rate=config.SLIPPAGE_RATE,
-                min_order_usd=config.MIN_ORDER_USD,
-                max_open_trades=config.MAX_OPEN_TRADES_PER_BOT
+                min_order_usd=min_order,
+                max_open_trades=max_trades
             )
             strategy = b['strategy_class'](bot_id=bot_id)
 
@@ -312,7 +333,7 @@ class TournamentEngine:
                         available_balance=avail_balance,
                         polymarket_events=poly_events
                     )
-                elif bot_id == 'bot_10_polywhalecopy':
+                elif bot_id in ['bot_10_polywhalecopy', 'bot_11_polyleaderwhale', 'bot_12_polymicrobot']:
                     decision = strategy.evaluate(
                         symbol=symbol,
                         df=df,

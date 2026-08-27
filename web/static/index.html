@@ -33,7 +33,7 @@
         </div>
         <div class="metric-card">
           <span class="metric-label">ACTIVE BOTS</span>
-          <span class="metric-value" id="header-bot-count">10 Bots ($500)</span>
+          <span class="metric-value" id="header-bot-count">12 Bots ($600)</span>
         </div>
         <div class="metric-card">
           <span class="metric-label">TOTAL PnL</span>
@@ -76,7 +76,7 @@
     <nav class="nav-tabs">
       <button class="tab-btn active" onclick="switchTab('leaderboard')">🏆 Bot Command Center</button>
       <button class="tab-btn" onclick="switchTab('trajectory')" style="color:var(--accent-cyan); border-color:rgba(6,182,212,0.3);">📈 Balance Trajectory & Trade Dots</button>
-      <button class="tab-btn" onclick="switchTab('polymarket')">🔮 Polymarket Terminal & Whale Copy</button>
+      <button class="tab-btn" onclick="switchTab('polymarket')">🔮 Polymarket Terminal & Copy-Traders</button>
       <button class="tab-btn" onclick="switchTab('candlestick')">🕯️ Candlestick Charts</button>
       <button class="tab-btn" onclick="switchTab('analytics')">📊 Portfolio Analytics</button>
       <button class="tab-btn" onclick="switchTab('backtest')">🧪 30-Day Backtester</button>
@@ -94,7 +94,7 @@
         <div class="section-title-row">
           <div>
             <h2>🏆 Multi-Bot Championship & Real-Time Matrix</h2>
-            <span class="caption">10 autonomous bots ($50 each): Crypto, Polymarket Arbitrage & Whale Copy, Indian Stocks (NSE), and Hyperliquid Commodities</span>
+            <span class="caption">12 autonomous bots ($50 each): Crypto, Polymarket Arbitrage & Copy-Traders, Indian Stocks (NSE), and Hyperliquid Commodities</span>
           </div>
           <div class="quick-controls-bar">
             <button class="btn-ctrl" onclick="toggleAllBots(true)">▶️ Resume All</button>
@@ -117,7 +117,7 @@
           <div class="chart-pair-selector">
             <label>Select Bot View: </label>
             <select id="trajectory-bot-select" onchange="renderTrajectoryChart()">
-              <option value="ALL">All 10 Bots (Comparative Trajectory)</option>
+              <option value="ALL">All 12 Bots (Comparative Trajectory)</option>
               <option value="bot_1_alphatrend">AlphaTrend (Crypto Trend)</option>
               <option value="bot_2_meanrevert">MeanRevert (Crypto Scalper)</option>
               <option value="bot_3_breakouthunter">BreakoutHunter (Memes: PENGU/PEPE)</option>
@@ -127,7 +127,9 @@
               <option value="bot_7_bharatbreakout">BharatBreakout (NSE Indian Stock)</option>
               <option value="bot_8_desimeanrevert">DesiMeanRevert (NSE Equities Scalper)</option>
               <option value="bot_9_hypergoldsilver">HyperGoldSilver (Hyperliquid Commodities)</option>
-              <option value="bot_10_polywhalecopy">PolyWhaleCopy (Polymarket Whale Mirror)</option>
+              <option value="bot_10_polywhalecopy">PolyWhaleCopy (Micro-Smart Mirror)</option>
+              <option value="bot_11_polyleaderwhale">PolyLeaderWhale (Top-5 Leaderboard Mirror)</option>
+              <option value="bot_12_polymicrobot">PolyMicroBotHunter ($5-$10 Algo Sniper)</option>
             </select>
           </div>
         </div>
@@ -147,25 +149,41 @@
       <section id="tab-polymarket" class="tab-pane">
         <div class="section-title-row">
           <div>
-            <h2>🔮 Polymarket Live Events & Whale Copy-Trading (Bot 6 & Bot 10)</h2>
-            <span class="caption">Real-time prediction markets, implied odds vs spot momentum, and automated Whale Mirroring</span>
+            <h2>🔮 Polymarket Terminal, Leaderboard Whales & $5-$10 Algo Bot Mirror</h2>
+            <span class="caption">Real-time prediction markets with 4 specialized automated sub-strategies</span>
           </div>
         </div>
 
-        <div class="poly-overview-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+        <div class="poly-overview-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:16px;">
           <div class="poly-info-card">
-            <h3>🤖 Bot 6: PolyPredictor (Odds Arbitrage)</h3>
+            <h3>🤖 Bot 6: PolyPredictor</h3>
             <p>Calculates mathematical fair value from spot momentum. Takes positions when market odds diverge by >10%.</p>
-            <div style="margin-top:10px; font-family:'JetBrains Mono'; font-size:12px; color:var(--accent-cyan);">
-              • Capital: $50.00 | Stake: $20.00 | Profit Target: +35%
+            <div style="margin-top:8px; font-family:'JetBrains Mono'; font-size:11px; color:var(--accent-cyan);">
+              • Capital: $50 | Stake: $20 | Edge Arbitrage
+            </div>
+          </div>
+
+          <div class="poly-info-card" style="border-color:var(--gold);">
+            <h3 style="color:var(--gold);">👑 Bot 11: PolyLeaderWhale</h3>
+            <p>Replicates high-conviction macro bets from the Top-5 all-time leaderboard giants ($200k-$500k+ net profit).</p>
+            <div style="margin-top:8px; font-family:'JetBrains Mono'; font-size:11px; color:var(--gold);">
+              • Capital: $50 | Stake: $25 | Leaderboard Mirror
             </div>
           </div>
 
           <div class="poly-info-card" style="border-color:var(--accent-green);">
-            <h3 style="color:var(--accent-green);">🐋 Bot 10: PolyWhaleCopy (Whale Mirror)</h3>
-            <p>Continuously tracks top Polymarket wallets (>74% win-rate) on Polygon and auto-replicates their high-conviction bets.</p>
-            <div style="margin-top:10px; font-family:'JetBrains Mono'; font-size:12px; color:var(--accent-green);">
-              • Capital: $50.00 | Copy Stake: $20.00 | Real Polygon Ready
+            <h3 style="color:var(--accent-green);">⚡ Bot 10: PolyWhaleCopy</h3>
+            <p>Mirrors verified micro-smart wallets ($20-$40 bets) with >80% win rates on high-yield mispriced longshots.</p>
+            <div style="margin-top:8px; font-family:'JetBrains Mono'; font-size:11px; color:var(--accent-green);">
+              • Capital: $50 | Stake: $20 | Micro-Sniper
+            </div>
+          </div>
+
+          <div class="poly-info-card" style="border-color:var(--accent-purple);">
+            <h3 style="color:var(--accent-purple);">🤖 Bot 12: PolyMicroBotHunter</h3>
+            <p>Copies high-frequency automated algorithm bot wallets executing $5-$10 micro-transactions with >83% win rate.</p>
+            <div style="margin-top:8px; font-family:'JetBrains Mono'; font-size:11px; color:var(--accent-purple);">
+              • Capital: $50 | Stake: $8 ($5-$10 Txns) | High Frequency
             </div>
           </div>
         </div>
