@@ -20,10 +20,14 @@ try:
     from strategies.adaptive_grid import AdaptiveGridStrategy
     from strategies.smart_money import SmartMoneyTrackerStrategy
     from strategies.polymarket_predictor import PolymarketPredictorStrategy
+    from strategies.indian_stock_breakout import BharatBreakoutStrategy
+    from strategies.indian_stock_meanrevert import DesiMeanRevertStrategy
+    from strategies.hyperliquid_gold_silver import HyperliquidGoldSilverStrategy
     from research.regime_analyzer import MarketRegimeAnalyzer
     from research.smart_wallet_tracker import SmartWalletTracker
     from research.sentiment_analyzer import SentimentAnalyzer
     from research.polymarket_feed import PolymarketFeed
+    from research.indian_market_feed import IndianAndCommodityFeed
     from core.backtester import StrategyBacktester
     from learning.self_improver import SelfImprovementEngine
     from notifications.notifier import ArenaNotifier
@@ -40,10 +44,14 @@ except (ImportError, ValueError):
     from ..strategies.adaptive_grid import AdaptiveGridStrategy
     from ..strategies.smart_money import SmartMoneyTrackerStrategy
     from ..strategies.polymarket_predictor import PolymarketPredictorStrategy
+    from ..strategies.indian_stock_breakout import BharatBreakoutStrategy
+    from ..strategies.indian_stock_meanrevert import DesiMeanRevertStrategy
+    from ..strategies.hyperliquid_gold_silver import HyperliquidGoldSilverStrategy
     from ..research.regime_analyzer import MarketRegimeAnalyzer
     from ..research.smart_wallet_tracker import SmartWalletTracker
     from ..research.sentiment_analyzer import SentimentAnalyzer
     from ..research.polymarket_feed import PolymarketFeed
+    from ..research.indian_market_feed import IndianAndCommodityFeed
     from ..learning.self_improver import SelfImprovementEngine
     from ..notifications.notifier import ArenaNotifier
     from ..config import config
@@ -60,6 +68,7 @@ class TournamentEngine:
             timeframe=config.TIMEFRAME,
             limit=config.CANDLE_LIMIT
         )
+        self.indian_feed = IndianAndCommodityFeed()
         self.regime_analyzer = MarketRegimeAnalyzer(self.db)
         self.smart_wallet_tracker = SmartWalletTracker(self.db)
         self.sentiment_analyzer = SentimentAnalyzer(self.db)
@@ -70,7 +79,7 @@ class TournamentEngine:
         # Dynamic trading pairs
         self.active_trading_pairs = list(config.TRADING_PAIRS)
 
-        # Initialize the 6 Bots, Wallets & Strategies
+        # Initialize all 9 Bots, Wallets & Strategies
         self.bots: Dict[str, Dict[str, Any]] = {}
         self.strategies: Dict[str, BaseStrategy] = {}
         self.wallets: Dict[str, PaperWallet] = {}
@@ -129,6 +138,27 @@ class TournamentEngine:
                 'strategy_name': 'Polymarket Event Probability & Statistical Arbitrage',
                 'description': 'Trades real Polymarket prediction markets by exploiting pricing misalignments between implied odds and spot momentum.',
                 'strategy_class': PolymarketPredictorStrategy
+            },
+            {
+                'id': 'bot_7_bharatbreakout',
+                'name': 'BharatBreakout (NSE/NIFTY)',
+                'strategy_name': 'Indian Stock Market 15m Open-Range Breakout',
+                'description': 'Trades high-liquidity Indian equities (NIFTY50, RELIANCE, TATAMOTORS) using 15m ORB + Supertrend.',
+                'strategy_class': BharatBreakoutStrategy
+            },
+            {
+                'id': 'bot_8_desimeanrevert',
+                'name': 'DesiMeanRevert (NSE Scalper)',
+                'strategy_name': 'Indian Stock Market Bollinger Band Dip Scalper',
+                'description': 'Scalps oversold dips on Indian stocks (TATAMOTORS, INFY, ICICIBANK) with 2-sigma mean reversion.',
+                'strategy_class': DesiMeanRevertStrategy
+            },
+            {
+                'id': 'bot_9_hypergoldsilver',
+                'name': 'HyperGoldSilver (Hyperliquid Commodities)',
+                'strategy_name': 'Hyperliquid Gold (XAU) & Silver (XAG) Macro Perp Bot',
+                'description': 'Trades Gold & Silver perps on Hyperliquid L1 DEX with macro trend-following & volatility breakouts.',
+                'strategy_class': HyperliquidGoldSilverStrategy
             }
         ]
 
@@ -203,21 +233,32 @@ class TournamentEngine:
         return candles[-60:] # Last 60 candles for chart
 
     async def run_tick(self):
-        """Executes one evaluation cycle across all symbols and all 6 bots."""
+        """Executes one evaluation cycle across all symbols and all 9 bots."""
         symbol_dfs = {}
         tickers = {}
         poly_events = self.get_polymarket_events()
 
-        # 1. Ingest Market Data for all Active Pairs
+        # 1. Ingest Market Data for all Active Crypto Pairs
         for symbol in self.active_trading_pairs:
             ticker = self.market_feed.fetch_ticker(symbol)
             df = self.market_feed.fetch_ohlcv_dataframe(symbol)
             tickers[symbol] = ticker
             symbol_dfs[symbol] = df
 
-            # Update mark price & SL/TP on all open positions across all bots
             for bot_id, wallet in self.wallets.items():
                 wallet.update_open_positions_market_price(symbol, ticker['price'])
+
+        # Ingest Indian Stock Market & Commodity Feeds
+        indian_symbols = ["RELIANCE", "TATAMOTORS", "NIFTY50", "HDFCBANK"]
+        commodity_symbols = ["GOLD/USD", "SILVER/USD"]
+        for sym in indian_symbols + commodity_symbols:
+            t = self.indian_feed.fetch_ticker(sym)
+            d = self.indian_feed.fetch_ohlcv_dataframe(sym)
+            tickers[sym] = t
+            symbol_dfs[sym] = d
+
+            for bot_id, wallet in self.wallets.items():
+                wallet.update_open_positions_market_price(sym, t['price'])
 
         # 2. Run Strategy Decisions for each Bot
         for bot_id, strategy in self.strategies.items():
@@ -229,7 +270,15 @@ class TournamentEngine:
             open_positions = wallet.get_open_positions()
             avail_balance = wallet.available_balance
 
-            for symbol in self.active_trading_pairs:
+            # Target relevant asset classes per bot
+            if bot_id in ['bot_7_bharatbreakout', 'bot_8_desimeanrevert']:
+                target_symbols = indian_symbols
+            elif bot_id == 'bot_9_hypergoldsilver':
+                target_symbols = commodity_symbols
+            else:
+                target_symbols = self.active_trading_pairs
+
+            for symbol in target_symbols:
                 df = symbol_dfs.get(symbol)
                 ticker = tickers.get(symbol)
                 if df is None or ticker is None:
