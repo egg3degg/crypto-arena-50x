@@ -141,6 +141,54 @@ async def get_equity_history():
         return []
     return engine.db.get_equity_history(limit=200)
 
+@app.get("/api/equity-trajectory")
+async def get_equity_trajectory(bot_id: Optional[str] = None):
+    if not engine:
+        return {}
+    
+    snapshots = engine.db.get_equity_history(bot_id=bot_id)
+    trades = engine.db.get_trades(bot_id=bot_id, limit=200)
+    bots = engine.get_leaderboard_data()
+
+    # Group snapshots by bot
+    bot_trajectories = {}
+    for b in bots:
+        b_id = b['bot_id']
+        b_snaps = [s for s in snapshots if s['bot_id'] == b_id]
+        b_trades = [t for t in trades if t['bot_id'] == b_id]
+        
+        # If no snapshots yet, use initial $50
+        if not b_snaps:
+            b_snaps = [{'timestamp': datetime.now(timezone.utc).isoformat(), 'total_equity': 50.0}]
+
+        # Prepare trade markers with dot colors
+        markers = []
+        for t in b_trades:
+            is_buy = t['side'] == 'BUY'
+            pnl = t.get('realized_pnl', 0.0)
+            is_win = pnl >= 0
+            dot_color = '#10b981' if (is_buy or is_win) else '#ef4444' # Green for Buy or Win, Red for Loss
+            markers.append({
+                'trade_id': t['trade_id'],
+                'timestamp': t['timestamp'],
+                'side': t['side'],
+                'symbol': t['symbol'],
+                'price': t['price'],
+                'realized_pnl': pnl,
+                'realized_pnl_pct': t.get('realized_pnl_pct', 0.0),
+                'dot_color': dot_color,
+                'reason': t.get('reason', '')
+            })
+
+        bot_trajectories[b_id] = {
+            'bot_id': b_id,
+            'name': b['name'],
+            'snapshots': b_snaps,
+            'trade_markers': markers
+        }
+
+    return bot_trajectories
+
 @app.get("/api/market-overview")
 async def get_market_overview():
     if not engine:

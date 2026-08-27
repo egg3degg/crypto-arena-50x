@@ -1,6 +1,7 @@
 // CryptoArena Web Master Control, Polymarket & Analytics Script
 let chartInstance = null;
 let candleChartInstance = null;
+let trajectoryChartInstance = null;
 let allocationChartInstance = null;
 let winLossChartInstance = null;
 let strategyBarChartInstance = null;
@@ -12,12 +13,11 @@ let activeTradesCache = [];
 let activePairsCache = [];
 
 const BASE_BOT_COLORS = [
-  '#06b6d4', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6', '#14b8a6', '#f97316'
+  '#06b6d4', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6', '#14b8a6', '#f97316', '#a855f7', '#fbbf24'
 ];
 
 document.addEventListener('DOMContentLoaded', () => {
   initWebSocket();
-  initEquityChart();
   initAnalyticsCharts();
   fetchInitialData();
   fetchPolymarketData();
@@ -38,8 +38,8 @@ function switchTab(tabId) {
   const targetPane = document.getElementById(`tab-${tabId}`);
   if (targetPane) targetPane.classList.add('active');
 
-  if (tabId === 'chart') {
-    updateEquityChartData();
+  if (tabId === 'trajectory') {
+    renderTrajectoryChart();
   } else if (tabId === 'analytics') {
     updateAnalyticsCharts();
   } else if (tabId === 'candlestick') {
@@ -95,7 +95,7 @@ async function fetchInitialData() {
     renderResearchLogs(researchRes);
     renderAdjustments(adjustmentsRes);
     updateAnalyticsCharts();
-    updateEquityChartData();
+    if (currentTab === 'trajectory') renderTrajectoryChart();
   } catch (e) {
     console.error("Fetch Data Error", e);
   }
@@ -116,6 +116,141 @@ async function fetchSentimentData() {
     renderSentiment(data);
   } catch (e) {
     console.error("Sentiment Fetch Error", e);
+  }
+}
+
+// -------------------------------------------------------------
+// TAB 2: BALANCE TRAJECTORY WITH GREEN & RED TRADE DOTS
+// -------------------------------------------------------------
+async function renderTrajectoryChart() {
+  const ctx = document.getElementById('trajectoryChartCanvas');
+  if (!ctx) return;
+
+  const selectEl = document.getElementById('trajectory-bot-select');
+  const selectedBot = selectEl ? selectEl.value : 'ALL';
+
+  try {
+    const trajectories = await fetch('/api/equity-trajectory').then(r => r.json());
+    if (!trajectories || Object.keys(trajectories).length === 0) return;
+
+    if (trajectoryChartInstance) {
+      trajectoryChartInstance.destroy();
+    }
+
+    let datasets = [];
+    let allTimestamps = [];
+
+    // Collect all timestamps
+    Object.values(trajectories).forEach(t => {
+      t.snapshots.forEach(s => allTimestamps.push(s.timestamp));
+    });
+    allTimestamps = [...new Set(allTimestamps)].sort();
+    const timeLabels = allTimestamps.map(ts => new Date(ts).toLocaleTimeString());
+
+    let botEntries = Object.entries(trajectories);
+    if (selectedBot !== 'ALL') {
+      botEntries = botEntries.filter(([id]) => id === selectedBot);
+    }
+
+    botEntries.forEach(([botId, botData], idx) => {
+      const color = BASE_BOT_COLORS[idx % BASE_BOT_COLORS.length];
+      
+      // Map equity values aligned with timestamps
+      const snapMap = {};
+      botData.snapshots.forEach(s => { snapMap[s.timestamp] = s.total_equity; });
+
+      // Forward fill balance values
+      let lastVal = 50.0;
+      const dataPoints = allTimestamps.map(ts => {
+        if (snapMap[ts] !== undefined) lastVal = snapMap[ts];
+        return lastVal;
+      });
+
+      // Trade Markers overlay (Green / Red Dots)
+      const pointBackgroundColors = [];
+      const pointBorderColors = [];
+      const pointRadiuses = [];
+      const pointTradeData = [];
+
+      allTimestamps.forEach((ts, tIdx) => {
+        // Check if trade occurred at this timestamp
+        const matchingTrades = botData.trade_markers.filter(m => {
+          return Math.abs(new Date(m.timestamp) - new Date(ts)) < 25000;
+        });
+
+        if (matchingTrades.length > 0) {
+          const t = matchingTrades[0];
+          pointRadiuses.push(8);
+          pointBackgroundColors.push(t.dot_color); // Green or Red
+          pointBorderColors.push('#ffffff');
+          pointTradeData.push(t);
+        } else {
+          pointRadiuses.push(1);
+          pointBackgroundColors.push(color);
+          pointBorderColors.push(color);
+          pointTradeData.push(null);
+        }
+      });
+
+      datasets.push({
+        label: botData.name,
+        data: dataPoints,
+        borderColor: color,
+        backgroundColor: color + '22',
+        borderWidth: 2.5,
+        fill: selectedBot !== 'ALL',
+        tension: 0.25,
+        pointRadius: pointRadiuses,
+        pointBackgroundColor: pointBackgroundColors,
+        pointBorderColor: pointBorderColors,
+        pointHoverRadius: 10,
+        tradeDetails: pointTradeData
+      });
+    });
+
+    trajectoryChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: timeLabels,
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'nearest', intersect: true },
+        scales: {
+          x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+          y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', callback: v => `$${v.toFixed(2)}` } }
+        },
+        plugins: {
+          legend: { labels: { color: '#f8fafc', font: { family: 'JetBrains Mono', size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const dataset = context.dataset;
+                const idx = context.dataIndex;
+                const val = context.parsed.y;
+                const trade = dataset.tradeDetails ? dataset.tradeDetails[idx] : null;
+
+                if (trade) {
+                  const sideEmoji = trade.side === 'BUY' ? '🟢 BUY' : (trade.realized_pnl >= 0 ? '🟢 WIN EXIT' : '🔴 LOSS EXIT');
+                  const pnlStr = trade.side === 'SELL' ? ` | PnL: ${trade.realized_pnl >= 0 ? '+' : ''}$${trade.realized_pnl.toFixed(2)}` : '';
+                  return [
+                    `📊 ${dataset.label}: Balance $${val.toFixed(2)}`,
+                    `⚡ ${sideEmoji} ${trade.symbol} @ $${trade.price.toFixed(2)}${pnlStr}`,
+                    `📝 ${trade.reason}`
+                  ];
+                }
+                return `📊 ${dataset.label}: $${val.toFixed(2)}`;
+              }
+            }
+          }
+        }
+      }
+    });
+
+  } catch (e) {
+    console.error("Trajectory chart load error", e);
   }
 }
 
@@ -245,7 +380,7 @@ function renderLeaderboard(bots) {
   }
 }
 
-// Candlestick Chart (Tab 3)
+// Candlestick Chart (Tab 4)
 async function loadCandlestickChart(symbol) {
   try {
     const candles = await fetch(`/api/ohlcv/${encodeURIComponent(symbol)}`).then(r => r.json());
@@ -310,7 +445,7 @@ async function loadCandlestickChart(symbol) {
   }
 }
 
-// Backtest Execution (Tab 5)
+// Backtest Execution (Tab 6)
 async function handleRunBacktest(e) {
   e.preventDefault();
   const btn = document.getElementById('btn-run-bt');
@@ -614,17 +749,17 @@ async function handleSaveTelegram() {
   }
 }
 
-// Visual Analytics & Pie Charts (Tab 4)
+// Visual Analytics & Pie Charts (Tab 5)
 function initAnalyticsCharts() {
   const allocCtx = document.getElementById('allocationPieChart');
   if (allocCtx) {
     allocationChartInstance = new Chart(allocCtx, {
       type: 'doughnut',
       data: {
-        labels: ['Liquid USDT', 'SOL', 'ETH', 'BTC', 'AVAX', 'NEAR', 'SUI', 'Polymarket Shares'],
+        labels: ['Liquid USDT', 'SOL', 'ETH', 'BTC', 'AVAX', 'NEAR', 'SUI', 'PENGU', 'NSE Stocks', 'Gold/Silver', 'Polymarket'],
         datasets: [{
-          data: [300, 0, 0, 0, 0, 0, 0, 0],
-          backgroundColor: ['#3b82f6', '#8b5cf6', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#ec4899', '#a855f7'],
+          data: [450, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          backgroundColor: ['#3b82f6', '#8b5cf6', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#ec4899', '#14b8a6', '#fbbf24', '#f97316', '#a855f7'],
           borderWidth: 2,
           borderColor: '#111927'
         }]
@@ -663,10 +798,10 @@ function initAnalyticsCharts() {
     strategyBarChartInstance = new Chart(barCtx, {
       type: 'bar',
       data: {
-        labels: ['AlphaTrend', 'MeanRevert', 'Breakout', 'Grid', 'SmartMoney', 'PolyPredictor'],
+        labels: ['AlphaTrend', 'MeanRevert', 'Breakout', 'Grid', 'SmartMoney', 'PolyPredictor', 'BharatBreakout', 'DesiMeanRevert', 'HyperGoldSilver'],
         datasets: [{
           label: 'Total PnL ($)',
-          data: [0, 0, 0, 0, 0, 0],
+          data: [0, 0, 0, 0, 0, 0, 0, 0, 0],
           backgroundColor: BASE_BOT_COLORS,
           borderRadius: 6
         }]
@@ -702,11 +837,15 @@ function updateAnalyticsCharts() {
     totalLosses += b.losing_trades;
   });
 
-  const pairAlloc = { 'SOL/USDT': 0, 'ETH/USDT': 0, 'BTC/USDT': 0, 'AVAX/USDT': 0, 'NEAR/USDT': 0, 'SUI/USDT': 0, 'POLY': 0 };
+  const pairAlloc = { 'SOL/USDT': 0, 'ETH/USDT': 0, 'BTC/USDT': 0, 'AVAX/USDT': 0, 'NEAR/USDT': 0, 'SUI/USDT': 0, 'PENGU/USDT': 0, 'NSE': 0, 'COMMODITY': 0, 'POLY': 0 };
   activePositionsCache.forEach(p => {
     const sym = p.symbol;
     if (pairAlloc[sym] !== undefined) {
       pairAlloc[sym] += p.cost_basis || 0;
+    } else if (sym.includes('RELIANCE') || sym.includes('TATAMOTORS') || sym.includes('NIFTY')) {
+      pairAlloc['NSE'] += p.cost_basis || 0;
+    } else if (sym.includes('GOLD') || sym.includes('SILVER')) {
+      pairAlloc['COMMODITY'] += p.cost_basis || 0;
     } else {
       pairAlloc['POLY'] += p.cost_basis || 0;
     }
@@ -748,6 +887,9 @@ function updateAnalyticsCharts() {
       pairAlloc['AVAX/USDT'] || 0,
       pairAlloc['NEAR/USDT'] || 0,
       pairAlloc['SUI/USDT'] || 0,
+      pairAlloc['PENGU/USDT'] || 0,
+      pairAlloc['NSE'] || 0,
+      pairAlloc['COMMODITY'] || 0,
       pairAlloc['POLY'] || 0
     ];
     allocationChartInstance.update();
@@ -773,10 +915,11 @@ function renderTickers(tickers) {
   let html = '';
   Object.values(tickers).forEach(t => {
     const chgClass = (t.change_24h_pct || 0) >= 0 ? 'pnl-pos' : 'pnl-neg';
+    const currSym = t.symbol.includes('(NSE)') ? '₹' : '$';
     html += `
       <div class="ticker-item">
         <span class="sym">${t.symbol}</span>
-        <span class="price">$${t.price ? t.price.toFixed(2) : '---'}</span>
+        <span class="price">${currSym}${t.price ? t.price.toFixed(2) : '---'}</span>
         <span class="${chgClass}" style="font-size:11px;">${t.change_24h_pct >= 0 ? '+' : ''}${(t.change_24h_pct || 0).toFixed(2)}%</span>
       </div>
     `;
@@ -890,54 +1033,6 @@ function renderTrades(trades) {
     `;
   });
   tbody.innerHTML = html;
-}
-
-// Equity Chart
-function initEquityChart() {
-  const ctx = document.getElementById('equityChart');
-  if (!ctx) return;
-  chartInstance = new Chart(ctx, {
-    type: 'line',
-    data: { labels: [], datasets: [] },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      scales: {
-        x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
-        y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', callback: v => `$${v.toFixed(2)}` }, title: { display: true, text: 'Portfolio Equity ($ USD)', color: '#94a3b8' } }
-      },
-      plugins: { legend: { labels: { color: '#f8fafc', font: { family: 'JetBrains Mono' } } } }
-    }
-  });
-}
-
-async function updateEquityChartData() {
-  if (!chartInstance) return;
-  try {
-    const history = await fetch('/api/equity-history').then(r => r.json());
-    if (!history || !history.length) return;
-
-    const timeLabels = [...new Set(history.map(h => new Date(h.timestamp).toLocaleTimeString()))].slice(-30);
-    chartInstance.data.labels = timeLabels;
-
-    const botIds = [...new Set(history.map(h => h.bot_id))];
-    chartInstance.data.datasets = botIds.map((bId, idx) => {
-      const color = BASE_BOT_COLORS[idx % BASE_BOT_COLORS.length];
-      const botData = history.filter(h => h.bot_id === bId).slice(-30).map(h => h.total_equity);
-      return {
-        label: bId,
-        data: botData,
-        borderColor: color,
-        backgroundColor: color,
-        tension: 0.2,
-        fill: false
-      };
-    });
-    chartInstance.update();
-  } catch (e) {
-    console.error("Chart update error", e);
-  }
 }
 
 // 1-Click Live Switch Modal

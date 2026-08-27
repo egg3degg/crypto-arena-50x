@@ -33,7 +33,7 @@
         </div>
         <div class="metric-card">
           <span class="metric-label">ACTIVE BOTS</span>
-          <span class="metric-value" id="header-bot-count">6 Bots ($300)</span>
+          <span class="metric-value" id="header-bot-count">9 Bots ($450)</span>
         </div>
         <div class="metric-card">
           <span class="metric-label">TOTAL PnL</span>
@@ -66,22 +66,24 @@
       <div class="ticker-item"><span class="sym">SUI/USDT</span> <span class="price">$---</span></div>
       <div class="ticker-item"><span class="sym">DOGE/USDT</span> <span class="price">$---</span></div>
       <div class="ticker-item"><span class="sym">PENGU/USDT</span> <span class="price">$---</span></div>
-      <div class="ticker-item"><span class="sym">PEPE/USDT</span> <span class="price">$---</span></div>
-      <div class="ticker-item"><span class="sym">WIF/USDT</span> <span class="price">$---</span></div>
-      <div class="ticker-item"><span class="sym">RENDER/USDT</span> <span class="price">$---</span></div>
+      <div class="ticker-item"><span class="sym">RELIANCE (NSE)</span> <span class="price">₹---</span></div>
+      <div class="ticker-item"><span class="sym">TATAMOTORS (NSE)</span> <span class="price">₹---</span></div>
+      <div class="ticker-item"><span class="sym">GOLD (XAU)</span> <span class="price">$---</span></div>
+      <div class="ticker-item"><span class="sym">SILVER (XAG)</span> <span class="price">$---</span></div>
     </div>
 
     <!-- Navigation Tabs -->
     <nav class="nav-tabs">
       <button class="tab-btn active" onclick="switchTab('leaderboard')">🏆 Bot Command Center</button>
+      <button class="tab-btn" onclick="switchTab('trajectory')" style="color:var(--accent-cyan); border-color:rgba(6,182,212,0.3);">📈 Balance Trajectory & Trade Dots</button>
       <button class="tab-btn" onclick="switchTab('polymarket')">🔮 Polymarket Terminal</button>
       <button class="tab-btn" onclick="switchTab('candlestick')">🕯️ Candlestick Charts</button>
-      <button class="tab-btn" onclick="switchTab('analytics')">📊 Visual Analytics & Pie Charts</button>
+      <button class="tab-btn" onclick="switchTab('analytics')">📊 Portfolio Analytics</button>
       <button class="tab-btn" onclick="switchTab('backtest')">🧪 30-Day Backtester</button>
       <button class="tab-btn" onclick="switchTab('research')">🧠 Deep Research & Sentiment</button>
       <button class="tab-btn" onclick="switchTab('learning')">⚙️ Self-Improvement AI</button>
       <button class="tab-btn" onclick="switchTab('trades')">⚡ Live Trades</button>
-      <button class="tab-btn" onclick="switchTab('docs')" style="color:var(--gold); border-color:rgba(251,191,36,0.3);">📚 Documentation & Guide</button>
+      <button class="tab-btn" onclick="switchTab('docs')" style="color:var(--gold); border-color:rgba(251,191,36,0.3);">📚 Documentation</button>
     </nav>
 
     <!-- Main Content Area -->
@@ -92,7 +94,7 @@
         <div class="section-title-row">
           <div>
             <h2>🏆 Multi-Bot Championship & Real-Time Matrix</h2>
-            <span class="caption">6 autonomous bots ($50 each): Trend, Scalper, Breakout, Grid, Whale Tracker, and Polymarket Arbitrage</span>
+            <span class="caption">9 autonomous bots ($50 each): Crypto, Polymarket, Indian Stocks (NSE), and Hyperliquid Commodities</span>
           </div>
           <div class="quick-controls-bar">
             <button class="btn-ctrl" onclick="toggleAllBots(true)">▶️ Resume All</button>
@@ -105,7 +107,42 @@
         </div>
       </section>
 
-      <!-- TAB 2: POLYMARKET PREDICTION MARKET TERMINAL -->
+      <!-- TAB 2: BALANCE TRAJECTORY & TRADE DOTS (NEW) -->
+      <section id="tab-trajectory" class="tab-pane">
+        <div class="section-title-row">
+          <div>
+            <h2>📈 Balance Trajectory & Trade Execution Overlay</h2>
+            <span class="caption">Real-time equity growth curves with <span style="color:var(--accent-green); font-weight:700;">🟢 Green Dots (Buys / Winning Exits)</span> and <span style="color:var(--accent-red); font-weight:700;">🔴 Red Dots (Losing Exits)</span></span>
+          </div>
+          <div class="chart-pair-selector">
+            <label>Select Bot View: </label>
+            <select id="trajectory-bot-select" onchange="renderTrajectoryChart()">
+              <option value="ALL">All 9 Bots (Comparative Trajectory)</option>
+              <option value="bot_1_alphatrend">AlphaTrend (Crypto Trend)</option>
+              <option value="bot_2_meanrevert">MeanRevert (Crypto Scalper)</option>
+              <option value="bot_3_breakouthunter">BreakoutHunter (Memes: PENGU/PEPE)</option>
+              <option value="bot_4_adaptivegrid">AdaptiveGrid (Micro-Grid Maker)</option>
+              <option value="bot_5_smartmoney">SmartMoneyTracker (Whale Tracker)</option>
+              <option value="bot_6_polypredictor">PolyPredictor (Polymarket Arbitrage)</option>
+              <option value="bot_7_bharatbreakout">BharatBreakout (NSE Indian Stock)</option>
+              <option value="bot_8_desimeanrevert">DesiMeanRevert (NSE Equities Scalper)</option>
+              <option value="bot_9_hypergoldsilver">HyperGoldSilver (Hyperliquid Commodities)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="chart-wrapper" style="height: 520px;">
+          <canvas id="trajectoryChartCanvas"></canvas>
+        </div>
+
+        <div style="margin-top:14px; display:flex; gap:20px; font-size:12px; color:var(--text-muted); justify-content:center;">
+          <span>🟢 <strong>Green Dot:</strong> Buy Order Entry OR Take-Profit Win</span>
+          <span>🔴 <strong>Red Dot:</strong> Stop-Loss Exit / Loss</span>
+          <span>💡 <em>Hover over any green/red dot to view trade details, entry/exit price, and reason!</em></span>
+        </div>
+      </section>
+
+      <!-- TAB 3: POLYMARKET PREDICTION MARKET TERMINAL -->
       <section id="tab-polymarket" class="tab-pane">
         <div class="section-title-row">
           <div>
@@ -129,7 +166,7 @@
         </div>
       </section>
 
-      <!-- TAB 3: CANDLESTICK CHARTS -->
+      <!-- TAB 4: CANDLESTICK CHARTS -->
       <section id="tab-candlestick" class="tab-pane">
         <div class="section-title-row">
           <div>
@@ -159,7 +196,7 @@
         </div>
       </section>
 
-      <!-- TAB 4: VISUAL ANALYTICS & PIE CHARTS -->
+      <!-- TAB 5: VISUAL ANALYTICS & PIE CHARTS -->
       <section id="tab-analytics" class="tab-pane">
         <div class="section-title-row">
           <div>
@@ -172,8 +209,8 @@
         <div class="analytics-kpi-grid">
           <div class="kpi-card">
             <span class="kpi-label">TOTAL ARENA CAPITAL</span>
-            <span class="kpi-val" id="kpi-total-capital">$300.00</span>
-            <span class="kpi-sub">$50.00 / bot across 6 bots</span>
+            <span class="kpi-val" id="kpi-total-capital">$450.00</span>
+            <span class="kpi-sub">$50.00 / bot across 9 bots</span>
           </div>
           <div class="kpi-card">
             <span class="kpi-label">OVERALL WIN RATE</span>
@@ -192,7 +229,7 @@
           </div>
         </div>
 
-        <!-- Visual Charts Grid (Pie & Donut Charts) -->
+        <!-- Visual Charts Grid -->
         <div class="charts-grid-3">
           <div class="chart-card">
             <h3>🥧 Portfolio Asset Allocation</h3>
@@ -217,7 +254,7 @@
         </div>
       </section>
 
-      <!-- TAB 5: BACKTEST PLAYGROUND -->
+      <!-- TAB 6: BACKTEST PLAYGROUND -->
       <section id="tab-backtest" class="tab-pane">
         <div class="section-title-row">
           <div>
@@ -286,7 +323,7 @@
         </div>
       </section>
 
-      <!-- TAB 6: AUTONOMOUS RESEARCH & SENTIMENT RADAR -->
+      <!-- TAB 7: AUTONOMOUS RESEARCH & SENTIMENT RADAR -->
       <section id="tab-research" class="tab-pane">
         <div class="section-title-row">
           <h2>🧠 Autonomous Deep Research & Crypto Sentiment Radar</h2>
@@ -329,7 +366,7 @@
         </div>
       </section>
 
-      <!-- TAB 7: SELF-IMPROVEMENT AI -->
+      <!-- TAB 8: SELF-IMPROVEMENT AI -->
       <section id="tab-learning" class="tab-pane">
         <div class="section-title-row">
           <h2>⚙️ Self-Improvement & Parameter Adaptation Feed</h2>
@@ -355,7 +392,7 @@
         </div>
       </section>
 
-      <!-- TAB 8: TRADES & POSITIONS -->
+      <!-- TAB 9: TRADES & POSITIONS -->
       <section id="tab-trades" class="tab-pane">
         <div class="split-tables">
           <div class="table-card">
@@ -407,7 +444,7 @@
         </div>
       </section>
 
-      <!-- TAB 9: COMPREHENSIVE DOCUMENTATION & GUIDE HUB (NEW) -->
+      <!-- TAB 10: COMPREHENSIVE DOCUMENTATION & GUIDE HUB -->
       <section id="tab-docs" class="tab-pane">
         <div class="section-title-row">
           <div>
@@ -437,7 +474,7 @@
             </div>
           </div>
 
-          <!-- Section 2: Strategy Architecture of the 6 Competing Bots -->
+          <!-- Section 2: Strategy Architecture of the 9 Competing Bots -->
           <div class="doc-card">
             <h3>🤖 2. Competing Bot Strategies Breakdown ($50 Capital Each)</h3>
             <div class="doc-grid-2">
@@ -465,17 +502,29 @@
                 <h4 style="color:var(--accent-purple);">🔮 Bot 6: PolyPredictor (Polymarket Arbitrage)</h4>
                 <p>Ingests real Polymarket prediction markets. Calculates quantitative probability from spot trend momentum and buys undervalued YES/NO shares when edge > 10%.</p>
               </div>
+              <div class="doc-subcard" style="border-color:var(--accent-yellow);">
+                <h4 style="color:var(--accent-yellow);">🇮🇳 Bot 7: BharatBreakout (Indian Stock Market)</h4>
+                <p>Trades high-liquidity Indian equities & indices (NIFTY50, RELIANCE, TATAMOTORS) using 15-minute Opening Range Breakout (ORB) + Supertrend.</p>
+              </div>
+              <div class="doc-subcard" style="border-color:var(--accent-yellow);">
+                <h4 style="color:var(--accent-yellow);">🇮🇳 Bot 8: DesiMeanRevert (NSE Equities Scalper)</h4>
+                <p>Scalps extreme oversold pullbacks on high-beta Indian largecaps (TATAMOTORS, INFY, ICICIBANK) with statistical 2-sigma mean reversion.</p>
+              </div>
+              <div class="doc-subcard" style="border-color:var(--accent-cyan);">
+                <h4 style="color:var(--accent-cyan);">🥇 Bot 9: HyperGoldSilver (Hyperliquid Commodities)</h4>
+                <p>Trades Gold (XAU) & Silver (XAG) perps on Hyperliquid L1 DEX with macro trend-following & volatility breakouts. Ready for real Arbitrum wallet execution!</p>
+              </div>
             </div>
           </div>
 
           <!-- Section 3: The 1-Click Live Switch Button -->
           <div class="doc-card">
             <h3>🚀 3. What is the "1-Click Live Switch ($50)" Green Button?</h3>
-            <p>After your 7-day tournament concludes, one of the 6 bots will be crowned the **#1 Champion** (highest net ROI, win rate, and profit factor after self-tuning).</p>
+            <p>After your 7-day tournament concludes, one of the 9 bots will be crowned the **#1 Champion** (highest net ROI, win rate, and profit factor after self-tuning).</p>
             <p style="margin-top:8px;">Clicking <strong>"🚀 1-Click Live Switch"</strong>:</p>
             <ol style="margin-left: 20px; line-height: 1.8; margin-top:8px; font-size:13px;">
               <li>Exports the champion bot's fine-tuned strategy and optimized parameters into <code>champion_strategy_config.json</code>.</li>
-              <li>Generates a ready-to-run execution command to connect your real \$50 on Binance, Bybit, or OKX.</li>
+              <li>Generates a ready-to-run execution command to connect your real \$50 on Binance, Bybit, or Hyperliquid.</li>
               <li>Runs in live production mode with your exchange API keys.</li>
             </ol>
             <div class="code-box" style="margin-top:10px;">
@@ -605,9 +654,10 @@
               <option value="SUI/USDT">SUI/USDT</option>
               <option value="DOGE/USDT">DOGE/USDT</option>
               <option value="PENGU/USDT">PENGU/USDT</option>
-              <option value="PEPE/USDT">PEPE/USDT</option>
-              <option value="WIF/USDT">WIF/USDT</option>
-              <option value="RENDER/USDT">RENDER/USDT</option>
+              <option value="RELIANCE">RELIANCE (NSE)</option>
+              <option value="TATAMOTORS">TATAMOTORS (NSE)</option>
+              <option value="GOLD/USD">GOLD (XAU/USD)</option>
+              <option value="SILVER/USD">SILVER (XAG/USD)</option>
             </select>
           </div>
           <div class="form-row">
