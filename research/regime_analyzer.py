@@ -10,7 +10,10 @@ import logging
 from typing import Dict, List, Any
 import numpy as np
 import pandas as pd
-from ..core.database import ArenaDatabase
+try:
+    from core.database import ArenaDatabase
+except (ImportError, ValueError):
+    from ..core.database import ArenaDatabase
 
 logger = logging.getLogger("CryptoArena.RegimeAnalyzer")
 

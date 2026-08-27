@@ -1,20 +1,24 @@
-// CryptoArena Web Control Script
+// CryptoArena Web Master Control & Analytics Script
 let chartInstance = null;
-let currentTab = 'leaderboard';
+let allocationChartInstance = null;
+let winLossChartInstance = null;
+let strategyBarChartInstance = null;
 
-const BOT_COLORS = {
-  'bot_1_alphatrend': '#06b6d4',
-  'bot_2_meanrevert': '#10b981',
-  'bot_3_breakouthunter': '#f59e0b',
-  'bot_4_adaptivegrid': '#8b5cf6',
-  'bot_5_smartmoney': '#ec4899'
-};
+let currentTab = 'leaderboard';
+let activeBotsCache = [];
+let activePositionsCache = [];
+let activeTradesCache = [];
+
+const BASE_BOT_COLORS = [
+  '#06b6d4', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6', '#14b8a6', '#f97316'
+];
 
 document.addEventListener('DOMContentLoaded', () => {
   initWebSocket();
-  initChart();
+  initEquityChart();
+  initAnalyticsCharts();
   fetchInitialData();
-  setInterval(fetchInitialData, 10000);
+  setInterval(fetchInitialData, 7000);
 });
 
 function switchTab(tabId) {
@@ -27,11 +31,13 @@ function switchTab(tabId) {
   if (targetPane) targetPane.classList.add('active');
 
   if (tabId === 'chart') {
-    updateChartData();
+    updateEquityChartData();
+  } else if (tabId === 'analytics') {
+    updateAnalyticsCharts();
   }
 }
 
-// WebSocket Connection
+// WebSocket Connection for Real-Time Telemetry
 function initWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -65,20 +71,26 @@ async function fetchInitialData() {
       fetch('/api/adjustments').then(r => r.json())
     ]);
 
+    activeBotsCache = leaderboardRes || [];
+    activePositionsCache = positionsRes || [];
+    activeTradesCache = tradesRes || [];
+
     renderLeaderboard(leaderboardRes);
     renderTrades(tradesRes);
     renderPositions(positionsRes);
     renderResearchLogs(researchRes);
     renderAdjustments(adjustmentsRes);
-    updateChartData();
+    updateAnalyticsCharts();
+    updateEquityChartData();
   } catch (e) {
     console.error("Fetch Data Error", e);
   }
 }
 
-// Render Leaderboard
+// Render Leaderboard & Bot Controls
 function renderLeaderboard(bots) {
   if (!bots || !bots.length) return;
+  activeBotsCache = bots;
   const container = document.getElementById('leaderboard-container');
   let html = '';
   let totalArenaPnl = 0;
@@ -86,14 +98,21 @@ function renderLeaderboard(bots) {
   bots.forEach((bot, index) => {
     const rank = index + 1;
     const rankClass = rank === 1 ? 'rank-1' : (rank === 2 ? 'rank-2' : (rank === 3 ? 'rank-3' : 'rank-other'));
-    const rankLabel = rank === 1 ? '🥇 #1' : (rank === 2 ? '🥈 #2' : (rank === 3 ? '🥉 #3' : `#${rank}`));
+    const rankLabel = rank === 1 ? '🥇 #1 Champion' : (rank === 2 ? '🥈 #2' : (rank === 3 ? '🥉 #3' : `#${rank}`));
     const pnlClass = bot.total_pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
     const pnlSign = bot.total_pnl >= 0 ? '+' : '';
+    const isActive = bot.is_active !== false;
     totalArenaPnl += bot.total_pnl;
 
     html += `
-      <div class="bot-card">
-        <div class="rank-badge ${rankClass}">${rankLabel}</div>
+      <div class="bot-card ${isActive ? '' : 'paused'}" id="card-${bot.bot_id}">
+        <div class="card-top-row">
+          <div class="bot-status-pill ${isActive ? 'status-active' : 'status-paused'}" onclick="toggleBotStatus('${bot.bot_id}', ${!isActive})">
+            ${isActive ? '● Active' : '⏸ Paused'}
+          </div>
+          <div class="rank-badge ${rankClass}">${rankLabel}</div>
+        </div>
+
         <div class="bot-name">${bot.name}</div>
         <div class="bot-strat-tag">${bot.strategy_name}</div>
 
@@ -116,11 +135,14 @@ function renderLeaderboard(bots) {
           </div>
         </div>
 
-        <div class="bot-desc">
-          <span>${bot.description}</span>
-          <div style="margin-top:6px; font-size:11px; color:var(--accent-cyan);">
-            Active Trades: <strong>${bot.open_positions_count}</strong> | Free Cash: <strong>$${bot.available_balance.toFixed(2)}</strong>
-          </div>
+        <div style="font-size:11px; color:var(--accent-cyan); margin-bottom:12px;">
+          Active Trades: <strong>${bot.open_positions_count}</strong> | Free Cash: <strong>$${bot.available_balance.toFixed(2)}</strong>
+        </div>
+
+        <div class="card-control-toolbar">
+          <button class="btn-ctrl" onclick="openEditParamsModal('${bot.bot_id}')">⚙️ Params</button>
+          <button class="btn-ctrl" onclick="openManualTradeModal('${bot.bot_id}')">⚡ Order</button>
+          <button class="btn-ctrl btn-ctrl-danger" onclick="liquidateBot('${bot.bot_id}')">🛑 Liquidate</button>
         </div>
       </div>
     `;
@@ -133,6 +155,320 @@ function renderLeaderboard(bots) {
   if (pnlEl) {
     pnlEl.textContent = `${totalArenaPnl >= 0 ? '+' : ''}$${totalArenaPnl.toFixed(2)}`;
     pnlEl.className = `metric-value ${totalArenaPnl >= 0 ? 'pnl-pos' : 'pnl-neg'}`;
+  }
+  const countEl = document.getElementById('header-bot-count');
+  if (countEl) {
+    countEl.textContent = `${bots.length} Bots`;
+  }
+}
+
+// Bot Control Actions
+async function toggleBotStatus(botId, newActiveState) {
+  try {
+    await fetch(`/api/bots/${botId}/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: newActiveState })
+    }).then(r => r.json());
+    fetchInitialData();
+  } catch (e) {
+    alert("Error toggling bot status: " + e);
+  }
+}
+
+async function toggleAllBots(isActive) {
+  if (!activeBotsCache.length) return;
+  for (const b of activeBotsCache) {
+    await fetch(`/api/bots/${b.bot_id}/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: isActive })
+    });
+  }
+  fetchInitialData();
+}
+
+async function liquidateBot(botId) {
+  if (!confirm(`Are you sure you want to emergency close all open positions for bot '${botId}' at market price?`)) return;
+  try {
+    const res = await fetch(`/api/bots/${botId}/liquidate`, { method: 'POST' }).then(r => r.json());
+    alert(`Successfully closed ${res.closed_trades_count} open positions.`);
+    fetchInitialData();
+  } catch (e) {
+    alert("Error liquidating bot: " + e);
+  }
+}
+
+// Modal Handlers
+function openModal(modalId) { document.getElementById(modalId).classList.add('active'); }
+function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
+
+function openCreateBotModal() { openModal('create-bot-modal'); }
+
+async function handleCreateBotSubmit(e) {
+  e.preventDefault();
+  const payload = {
+    name: document.getElementById('new-bot-name').value,
+    strategy_type: document.getElementById('new-bot-strat-type').value,
+    initial_capital: parseFloat(document.getElementById('new-bot-capital').value),
+    description: document.getElementById('new-bot-desc').value,
+    params: {
+      stake_usd: parseFloat(document.getElementById('new-bot-stake').value),
+      take_profit_pct: parseFloat(document.getElementById('new-bot-tp').value) / 100.0,
+      stop_loss_pct: parseFloat(document.getElementById('new-bot-sl').value) / 100.0
+    }
+  };
+
+  try {
+    const res = await fetch('/api/bots/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.json());
+
+    if (res.success) {
+      closeModal('create-bot-modal');
+      alert(`Bot '${payload.name}' deployed successfully into the arena!`);
+      fetchInitialData();
+    }
+  } catch (err) {
+    alert("Error creating bot: " + err);
+  }
+}
+
+function openEditParamsModal(botId) {
+  const bot = activeBotsCache.find(b => b.bot_id === botId);
+  if (!bot) return;
+
+  document.getElementById('edit-bot-id').value = botId;
+  document.getElementById('edit-bot-title').textContent = bot.name;
+  const p = bot.active_strategy_params || {};
+
+  document.getElementById('edit-tp-pct').value = ((p.take_profit_pct || 0.04) * 100).toFixed(1);
+  document.getElementById('edit-sl-pct').value = ((p.stop_loss_pct || 0.02) * 100).toFixed(1);
+  document.getElementById('edit-trail-pct').value = p.trailing_stop_pct ? (p.trailing_stop_pct * 100).toFixed(1) : '0';
+  document.getElementById('edit-stake-usd').value = p.stake_usd || 25.0;
+
+  openModal('edit-params-modal');
+}
+
+async function handleEditParamsSubmit(e) {
+  e.preventDefault();
+  const botId = document.getElementById('edit-bot-id').value;
+  const trailVal = parseFloat(document.getElementById('edit-trail-pct').value);
+
+  const payload = {
+    take_profit_pct: parseFloat(document.getElementById('edit-tp-pct').value) / 100.0,
+    stop_loss_pct: parseFloat(document.getElementById('edit-sl-pct').value) / 100.0,
+    trailing_stop_pct: trailVal > 0 ? trailVal / 100.0 : null,
+    stake_usd: parseFloat(document.getElementById('edit-stake-usd').value)
+  };
+
+  try {
+    const res = await fetch(`/api/bots/${botId}/params`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.json());
+
+    if (res.success) {
+      closeModal('edit-params-modal');
+      alert(`Parameters for '${botId}' updated live!`);
+      fetchInitialData();
+    }
+  } catch (err) {
+    alert("Error updating parameters: " + err);
+  }
+}
+
+function openManualTradeModal(botId) {
+  const bot = activeBotsCache.find(b => b.bot_id === botId);
+  document.getElementById('manual-bot-id').value = botId;
+  document.getElementById('manual-bot-title').textContent = bot ? bot.name : botId;
+  openModal('manual-trade-modal');
+}
+
+async function handleManualTradeSubmit(e) {
+  e.preventDefault();
+  const botId = document.getElementById('manual-bot-id').value;
+  const payload = {
+    symbol: document.getElementById('manual-symbol').value,
+    side: document.getElementById('manual-side').value,
+    usd_amount: parseFloat(document.getElementById('manual-amount').value)
+  };
+
+  try {
+    const res = await fetch(`/api/bots/${botId}/manual-order`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.json());
+
+    closeModal('manual-trade-modal');
+    if (res.success) {
+      alert(`Manual ${payload.side} order executed for ${payload.symbol}!`);
+      fetchInitialData();
+    } else {
+      alert("Order rejected: Insufficient balance or maximum open trades reached.");
+    }
+  } catch (err) {
+    alert("Error executing order: " + err);
+  }
+}
+
+// Visual Analytics & Pie Charts (Tab 2)
+function initAnalyticsCharts() {
+  // 1. Asset Allocation Pie Chart
+  const allocCtx = document.getElementById('allocationPieChart');
+  if (allocCtx) {
+    allocationChartInstance = new Chart(allocCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Liquid USDT', 'SOL', 'ETH', 'BTC', 'AVAX', 'NEAR'],
+        datasets: [{
+          data: [250, 0, 0, 0, 0, 0],
+          backgroundColor: ['#3b82f6', '#8b5cf6', '#06b6d4', '#f59e0b', '#ef4444', '#10b981'],
+          borderWidth: 2,
+          borderColor: '#111927'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'right', labels: { color: '#f8fafc', font: { family: 'JetBrains Mono', size: 11 } } } }
+      }
+    });
+  }
+
+  // 2. Win vs Loss Donut Chart
+  const winLossCtx = document.getElementById('winLossDonutChart');
+  if (winLossCtx) {
+    winLossChartInstance = new Chart(winLossCtx, {
+      type: 'pie',
+      data: {
+        labels: ['Winning Trades', 'Losing Trades'],
+        datasets: [{
+          data: [1, 0],
+          backgroundColor: ['#10b981', '#ef4444'],
+          borderWidth: 2,
+          borderColor: '#111927'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { color: '#f8fafc', font: { family: 'JetBrains Mono', size: 11 } } } }
+      }
+    });
+  }
+
+  // 3. Strategy Contribution Bar Chart
+  const barCtx = document.getElementById('strategyBarChart');
+  if (barCtx) {
+    strategyBarChartInstance = new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: ['AlphaTrend', 'MeanRevert', 'Breakout', 'Grid', 'SmartMoney'],
+        datasets: [{
+          label: 'Total PnL ($)',
+          data: [0, 0, 0, 0, 0],
+          backgroundColor: BASE_BOT_COLORS,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 } } },
+          y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', callback: (v) => `$${v}` } }
+        },
+        plugins: { legend: { display: false } }
+      }
+    });
+  }
+}
+
+function updateAnalyticsCharts() {
+  if (!activeBotsCache.length) return;
+
+  // Calculate totals
+  let totalCap = 0;
+  let totalAvailable = 0;
+  let totalWins = 0;
+  let totalLosses = 0;
+  let grossProfit = 0;
+  let grossLoss = 0;
+  let totalVol = 0;
+
+  activeBotsCache.forEach(b => {
+    totalCap += b.current_equity;
+    totalAvailable += b.available_balance;
+    totalWins += b.winning_trades;
+    totalLosses += b.losing_trades;
+  });
+
+  const pairAlloc = { 'SOL/USDT': 0, 'ETH/USDT': 0, 'BTC/USDT': 0, 'AVAX/USDT': 0, 'NEAR/USDT': 0 };
+  activePositionsCache.forEach(p => {
+    const sym = p.symbol;
+    if (pairAlloc[sym] !== undefined) {
+      pairAlloc[sym] += p.cost_basis || 0;
+    }
+  });
+
+  activeTradesCache.forEach(t => {
+    totalVol += t.cost_or_proceeds || 0;
+    if (t.realized_pnl > 0) grossProfit += t.realized_pnl;
+    else if (t.realized_pnl < 0) grossLoss += Math.abs(t.realized_pnl);
+  });
+
+  // Update KPI Cards
+  const kpiCap = document.getElementById('kpi-total-capital');
+  if (kpiCap) kpiCap.textContent = `$${totalCap.toFixed(2)}`;
+
+  const totalTrades = totalWins + totalLosses;
+  const overallWinRate = totalTrades > 0 ? (totalWins / totalTrades * 100.0) : 0.0;
+  const kpiWin = document.getElementById('kpi-win-rate');
+  if (kpiWin) kpiWin.textContent = `${overallWinRate.toFixed(1)}%`;
+
+  const kpiTrades = document.getElementById('kpi-trades-count');
+  if (kpiTrades) kpiTrades.textContent = `${totalTrades} Closed Trades (${totalWins}W / ${totalLosses}L)`;
+
+  const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss) : (grossProfit > 0 ? 9.99 : 1.00);
+  const kpiPf = document.getElementById('kpi-profit-factor');
+  if (kpiPf) kpiPf.textContent = profitFactor.toFixed(2);
+
+  const kpiVol = document.getElementById('kpi-total-volume');
+  if (kpiVol) kpiVol.textContent = `$${totalVol.toFixed(2)}`;
+
+  const kpiFees = document.getElementById('kpi-fees-paid');
+  if (kpiFees) kpiFees.textContent = `Est. Fees: $${(totalVol * 0.00075).toFixed(3)}`;
+
+  // 1. Update Allocation Donut Chart
+  if (allocationChartInstance) {
+    allocationChartInstance.data.datasets[0].data = [
+      Math.max(0, totalAvailable),
+      pairAlloc['SOL/USDT'] || 0,
+      pairAlloc['ETH/USDT'] || 0,
+      pairAlloc['BTC/USDT'] || 0,
+      pairAlloc['AVAX/USDT'] || 0,
+      pairAlloc['NEAR/USDT'] || 0
+    ];
+    allocationChartInstance.update();
+  }
+
+  // 2. Update Win/Loss Chart
+  if (winLossChartInstance) {
+    winLossChartInstance.data.datasets[0].data = [totalWins || 1, totalLosses || (totalWins > 0 ? 0 : 1)];
+    winLossChartInstance.update();
+  }
+
+  // 3. Update Strategy Bar Chart
+  if (strategyBarChartInstance) {
+    strategyBarChartInstance.data.labels = activeBotsCache.map(b => b.name);
+    strategyBarChartInstance.data.datasets[0].data = activeBotsCache.map(b => b.total_pnl);
+    strategyBarChartInstance.data.datasets[0].backgroundColor = activeBotsCache.map(b => b.total_pnl >= 0 ? '#10b981' : '#ef4444');
+    strategyBarChartInstance.update();
   }
 }
 
@@ -267,22 +603,13 @@ function renderTrades(trades) {
 }
 
 // Chart.js Equity Curve
-function initChart() {
+function initEquityChart() {
   const ctx = document.getElementById('equityChart');
   if (!ctx) return;
 
   chartInstance = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels: [],
-      datasets: [
-        { label: 'AlphaTrend', data: [], borderColor: BOT_COLORS['bot_1_alphatrend'], tension: 0.2, fill: false },
-        { label: 'MeanRevert', data: [], borderColor: BOT_COLORS['bot_2_meanrevert'], tension: 0.2, fill: false },
-        { label: 'BreakoutHunter', data: [], borderColor: BOT_COLORS['bot_3_breakouthunter'], tension: 0.2, fill: false },
-        { label: 'AdaptiveGrid', data: [], borderColor: BOT_COLORS['bot_4_adaptivegrid'], tension: 0.2, fill: false },
-        { label: 'SmartMoneyTracker', data: [], borderColor: BOT_COLORS['bot_5_smartmoney'], tension: 0.2, fill: false }
-      ]
-    },
+    data: { labels: [], datasets: [] },
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -295,27 +622,32 @@ function initChart() {
           title: { display: true, text: 'Portfolio Equity ($ USD)', color: '#94a3b8' }
         }
       },
-      plugins: {
-        legend: { labels: { color: '#f8fafc', font: { family: 'JetBrains Mono' } } }
-      }
+      plugins: { legend: { labels: { color: '#f8fafc', font: { family: 'JetBrains Mono' } } } }
     }
   });
 }
 
-async function updateChartData() {
+async function updateEquityChartData() {
   if (!chartInstance) return;
   try {
     const history = await fetch('/api/equity-history').then(r => r.json());
     if (!history || !history.length) return;
 
-    // Group history by bot_id
     const timeLabels = [...new Set(history.map(h => new Date(h.timestamp).toLocaleTimeString()))].slice(-30);
     chartInstance.data.labels = timeLabels;
 
-    const botKeys = ['bot_1_alphatrend', 'bot_2_meanrevert', 'bot_3_breakouthunter', 'bot_4_adaptivegrid', 'bot_5_smartmoney'];
-    botKeys.forEach((key, idx) => {
-      const botData = history.filter(h => h.bot_id === key).slice(-30).map(h => h.total_equity);
-      chartInstance.data.datasets[idx].data = botData;
+    const botIds = [...new Set(history.map(h => h.bot_id))];
+    chartInstance.data.datasets = botIds.map((bId, idx) => {
+      const color = BASE_BOT_COLORS[idx % BASE_BOT_COLORS.length];
+      const botData = history.filter(h => h.bot_id === bId).slice(-30).map(h => h.total_equity);
+      return {
+        label: bId,
+        data: botData,
+        borderColor: color,
+        backgroundColor: color,
+        tension: 0.2,
+        fill: false
+      };
     });
 
     chartInstance.update();
@@ -326,9 +658,8 @@ async function updateChartData() {
 
 // 1-Click Live Switch Modal
 async function openLiveSwitchModal() {
-  const modal = document.getElementById('live-switch-modal');
+  openModal('live-switch-modal');
   const body = document.getElementById('modal-body-content');
-  modal.classList.add('active');
 
   try {
     const winner = await fetch('/api/export-winner', { method: 'POST' }).then(r => r.json());
@@ -359,8 +690,4 @@ async function openLiveSwitchModal() {
   } catch (e) {
     body.innerHTML = `<p style="color:var(--accent-red);">Failed to export winner metrics. Please ensure tournament is active.</p>`;
   }
-}
-
-function closeLiveSwitchModal() {
-  document.getElementById('live-switch-modal').classList.remove('active');
 }

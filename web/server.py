@@ -8,18 +8,44 @@ import asyncio
 import logging
 from pathlib import Path
 from typing import Dict, List, Any
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from ..core.engine import TournamentEngine
-from ..config import config
+try:
+    from core.database import ArenaDatabase
+    from core.engine import TournamentEngine
+    from config import config
+except (ImportError, ValueError):
+    from ..core.database import ArenaDatabase
+    from ..core.engine import TournamentEngine
+    from ..config import config
 
 logger = logging.getLogger("CryptoArena.WebServer")
 
-app = FastAPI(title="CryptoArena 50X Control Dashboard", version="1.0.0")
+# Global engine reference
+engine: TournamentEngine = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI Lifespan: Initializes database, starts tournament engine 24/7 background loop."""
+    global engine
+    logger.info("Initializing CryptoArena Tournament Engine via FastAPI Lifespan...")
+    db = ArenaDatabase(config.DB_PATH)
+    engine = TournamentEngine(db)
+    
+    # Start 24/7 tournament loop in background
+    tournament_task = asyncio.create_task(engine.start())
+    yield
+    # Graceful shutdown
+    if engine:
+        engine.stop()
+    tournament_task.cancel()
+
+app = FastAPI(title="CryptoArena 50X Control Dashboard", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,9 +54,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Global engine reference
-engine: TournamentEngine = None
 
 class ConnectionManager:
     def __init__(self):
@@ -149,6 +172,66 @@ async def export_winner():
         'live_readiness': "READY_FOR_$50_DEPLOYMENT"
     }
     return export_payload
+
+# --- Bot Control Endpoints ---
+@app.post("/api/bots/{bot_id}/toggle")
+async def toggle_bot(bot_id: str, payload: Dict[str, Any]):
+    if not engine:
+        return JSONResponse(status_code=500, content={"error": "Engine not running"})
+    is_active = payload.get("is_active", True)
+    success = engine.toggle_bot(bot_id, is_active)
+    return {"bot_id": bot_id, "is_active": is_active, "success": success}
+
+@app.post("/api/bots/{bot_id}/liquidate")
+async def liquidate_bot(bot_id: str):
+    if not engine:
+        return JSONResponse(status_code=500, content={"error": "Engine not running"})
+    closed_trades = engine.liquidate_bot(bot_id)
+    return {"bot_id": bot_id, "closed_trades_count": len(closed_trades), "trades": closed_trades}
+
+@app.post("/api/bots/{bot_id}/params")
+async def update_bot_params(bot_id: str, payload: Dict[str, Any]):
+    if not engine:
+        return JSONResponse(status_code=500, content={"error": "Engine not running"})
+    success = engine.update_bot_params(bot_id, payload)
+    return {"bot_id": bot_id, "success": success, "updated_params": payload}
+
+@app.post("/api/bots/create")
+async def create_bot(payload: Dict[str, Any]):
+    if not engine:
+        return JSONResponse(status_code=500, content={"error": "Engine not running"})
+    name = payload.get("name", "New Bot")
+    strat_type = payload.get("strategy_type", "trend")
+    description = payload.get("description", "")
+    capital = float(payload.get("initial_capital", 50.0))
+    params = payload.get("params", {})
+    
+    bot_info = engine.create_custom_bot(
+        name=name,
+        strategy_type=strat_type,
+        description=description,
+        initial_capital=capital,
+        params=params
+    )
+    return {"success": True, "bot": bot_info}
+
+@app.post("/api/bots/{bot_id}/manual-order")
+async def manual_order(bot_id: str, payload: Dict[str, Any]):
+    if not engine:
+        return JSONResponse(status_code=500, content={"error": "Engine not running"})
+    symbol = payload.get("symbol", "SOL/USDT")
+    side = payload.get("side", "BUY")
+    usd_amount = float(payload.get("usd_amount", 25.0))
+    result = engine.execute_manual_trade(bot_id, symbol, side, usd_amount)
+    return {"success": bool(result), "result": result}
+
+@app.post("/api/tournament/reset")
+async def reset_tournament_api(payload: Dict[str, Any] = None):
+    if not engine:
+        return JSONResponse(status_code=500, content={"error": "Engine not running"})
+    capital = float(payload.get("capital_per_bot", 50.0)) if payload else 50.0
+    engine.reset_tournament(capital)
+    return {"success": True, "message": f"Tournament reset with ${capital} per bot"}
 
 # WebSocket Endpoint
 @app.websocket("/ws")

@@ -9,20 +9,36 @@ import asyncio
 from typing import Dict, List, Any, Optional
 import pandas as pd
 
-from .database import ArenaDatabase
-from .simulator import PaperWallet
-from .market_feed import MarketFeed
-from ..strategies.base_strategy import BaseStrategy, Signal
-from ..strategies.alpha_trend import AlphaTrendStrategy
-from ..strategies.mean_revert import MeanRevertStrategy
-from ..strategies.breakout_hunter import BreakoutHunterStrategy
-from ..strategies.adaptive_grid import AdaptiveGridStrategy
-from ..strategies.smart_money import SmartMoneyTrackerStrategy
-from ..research.regime_analyzer import MarketRegimeAnalyzer
-from ..research.smart_wallet_tracker import SmartWalletTracker
-from ..learning.self_improver import SelfImprovementEngine
-from ..notifications.notifier import ArenaNotifier
-from ..config import config
+try:
+    from core.database import ArenaDatabase
+    from core.simulator import PaperWallet
+    from core.market_feed import MarketFeed
+    from strategies.base_strategy import BaseStrategy, Signal
+    from strategies.alpha_trend import AlphaTrendStrategy
+    from strategies.mean_revert import MeanRevertStrategy
+    from strategies.breakout_hunter import BreakoutHunterStrategy
+    from strategies.adaptive_grid import AdaptiveGridStrategy
+    from strategies.smart_money import SmartMoneyTrackerStrategy
+    from research.regime_analyzer import MarketRegimeAnalyzer
+    from research.smart_wallet_tracker import SmartWalletTracker
+    from learning.self_improver import SelfImprovementEngine
+    from notifications.notifier import ArenaNotifier
+    from config import config
+except (ImportError, ValueError):
+    from .database import ArenaDatabase
+    from .simulator import PaperWallet
+    from .market_feed import MarketFeed
+    from ..strategies.base_strategy import BaseStrategy, Signal
+    from ..strategies.alpha_trend import AlphaTrendStrategy
+    from ..strategies.mean_revert import MeanRevertStrategy
+    from ..strategies.breakout_hunter import BreakoutHunterStrategy
+    from ..strategies.adaptive_grid import AdaptiveGridStrategy
+    from ..strategies.smart_money import SmartMoneyTrackerStrategy
+    from ..research.regime_analyzer import MarketRegimeAnalyzer
+    from ..research.smart_wallet_tracker import SmartWalletTracker
+    from ..learning.self_improver import SelfImprovementEngine
+    from ..notifications.notifier import ArenaNotifier
+    from ..config import config
 
 logger = logging.getLogger("CryptoArena.Engine")
 
@@ -138,6 +154,10 @@ class TournamentEngine:
 
         # 2. Run Strategy Decisions for each Bot
         for bot_id, strategy in self.strategies.items():
+            bot_record = self.db.get_bot(bot_id)
+            if bot_record and not bot_record.get('is_active', 1):
+                continue
+
             wallet = self.wallets[bot_id]
             open_positions = wallet.get_open_positions()
             avail_balance = wallet.available_balance
@@ -295,8 +315,113 @@ class TournamentEngine:
                 'losing_trades': b['losing_trades'],
                 'max_drawdown': round(b['max_drawdown'], 2),
                 'open_positions_count': len(open_pos),
+                'is_active': bool(b.get('is_active', 1)),
                 'active_strategy_params': self.strategies[bot_id].params if bot_id in self.strategies else {}
             })
 
         leaderboard.sort(key=lambda x: x['total_pnl'], reverse=True)
         return leaderboard
+
+    def toggle_bot(self, bot_id: str, is_active: bool) -> bool:
+        """Pauses or resumes an individual bot."""
+        if bot_id not in self.wallets:
+            return False
+        self.db.set_bot_active_status(bot_id, is_active)
+        logger.info(f"Bot '{bot_id}' active status set to {is_active}")
+        return True
+
+    def liquidate_bot(self, bot_id: str) -> List[Dict[str, Any]]:
+        """Force closes all open positions for a bot at current market prices."""
+        wallet = self.wallets.get(bot_id)
+        if not wallet:
+            return []
+        open_pos = wallet.get_open_positions()
+        closed = []
+        for pos in open_pos:
+            ticker = self.market_feed.fetch_ticker(pos['symbol'])
+            trade = wallet.execute_sell(pos['position_id'], ticker['price'], reason="MANUAL_LIQUIDATE")
+            if trade:
+                closed.append(trade)
+        return closed
+
+    def update_bot_params(self, bot_id: str, new_params: Dict[str, Any]) -> bool:
+        """Dynamically updates hyperparameters for an active strategy."""
+        strat = self.strategies.get(bot_id)
+        if not strat:
+            return False
+        old_params = dict(strat.params)
+        strat.update_parameters(new_params)
+        for k, v in new_params.items():
+            self.db.log_parameter_adjustment(bot_id, k, old_params.get(k), v, "Manual User Dashboard Control")
+        return True
+
+    def create_custom_bot(self, name: str, strategy_type: str, description: str = "",
+                          initial_capital: float = 50.0, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Dynamically adds a new trading bot into the active tournament."""
+        bot_id = f"bot_{len(self.wallets) + 1}_{name.lower().replace(' ', '_')}"
+        
+        # Strategy mapper
+        strategy_classes = {
+            'trend': AlphaTrendStrategy,
+            'mean_revert': MeanRevertStrategy,
+            'breakout': BreakoutHunterStrategy,
+            'grid': AdaptiveGridStrategy,
+            'smart_money': SmartMoneyTrackerStrategy
+        }
+        strat_cls = strategy_classes.get(strategy_type, AlphaTrendStrategy)
+
+        self.db.register_bot(
+            bot_id=bot_id,
+            name=name,
+            strategy_name=f"{strategy_type.capitalize()} Custom AI",
+            description=description or f"Custom {strategy_type} automated bot",
+            initial_capital=initial_capital
+        )
+
+        wallet = PaperWallet(
+            bot_id=bot_id,
+            db=self.db,
+            initial_capital=initial_capital,
+            fee_rate=config.FEE_RATE,
+            slippage_rate=config.SLIPPAGE_RATE,
+            min_order_usd=config.MIN_ORDER_USD,
+            max_open_trades=config.MAX_OPEN_TRADES_PER_BOT
+        )
+        strategy = strat_cls(bot_id=bot_id, params=params)
+
+        self.bots[bot_id] = {
+            'id': bot_id,
+            'name': name,
+            'strategy_name': f"{strategy_type.capitalize()} Custom AI",
+            'description': description
+        }
+        self.wallets[bot_id] = wallet
+        self.strategies[bot_id] = strategy
+
+        logger.info(f"Custom bot '{name}' ({bot_id}) dynamically registered with ${initial_capital} capital.")
+        return {'bot_id': bot_id, 'name': name, 'strategy_type': strategy_type}
+
+    def execute_manual_trade(self, bot_id: str, symbol: str, side: str, usd_amount: float = 25.0) -> Optional[Dict[str, Any]]:
+        """Allows manual execution override for testing or emergency entry/exit."""
+        wallet = self.wallets.get(bot_id)
+        if not wallet:
+            return None
+        ticker = self.market_feed.fetch_ticker(symbol)
+        if side.upper() == "BUY":
+            return wallet.execute_buy(symbol, ticker['price'], usd_amount, stop_loss_pct=0.025, take_profit_pct=0.045, reason="MANUAL_OVERRIDE")
+        else:
+            open_pos = [p for p in wallet.get_open_positions() if p['symbol'] == symbol]
+            if open_pos:
+                return wallet.execute_sell(open_pos[0]['position_id'], ticker['price'], reason="MANUAL_OVERRIDE")
+        return None
+
+    def reset_tournament(self, capital: float = 50.0):
+        """Resets all bots and trades to initial state."""
+        self.db.reset_tournament(capital)
+        for bot_id in self.wallets:
+            self.wallets[bot_id] = PaperWallet(
+                bot_id=bot_id,
+                db=self.db,
+                initial_capital=capital
+            )
+        logger.info(f"Tournament reset successfully with ${capital:.2f} per bot.")

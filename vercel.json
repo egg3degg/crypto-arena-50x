@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "public": true,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "http://8.234.126.146:8088/api/$1"
+    },
+    {
+      "source": "/ws",
+      "destination": "http://8.234.126.146:8088/ws"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/web/static/$1"
+    }
+  ]
+}

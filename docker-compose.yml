@@ -6,6 +6,7 @@ services:
     container_name: crypto_arena_50x
     restart: always
     ports:
+      - "80:8088"
       - "8088:8088"
     volumes:
       - ./data:/app/data

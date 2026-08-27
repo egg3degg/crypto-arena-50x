@@ -219,6 +219,45 @@ class ArenaDatabase:
                   total_trades, winning_trades, losing_trades, max_drawdown, peak_equity, bot_id))
             conn.commit()
 
+    def set_bot_active_status(self, bot_id: str, is_active: bool):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE bots SET is_active = ? WHERE bot_id = ?", (1 if is_active else 0, bot_id))
+            conn.commit()
+
+    def delete_bot(self, bot_id: str):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM positions WHERE bot_id = ?", (bot_id,))
+            cursor.execute("DELETE FROM trades WHERE bot_id = ?", (bot_id,))
+            cursor.execute("DELETE FROM equity_snapshots WHERE bot_id = ?", (bot_id,))
+            cursor.execute("DELETE FROM parameter_adjustments WHERE bot_id = ?", (bot_id,))
+            cursor.execute("DELETE FROM bots WHERE bot_id = ?", (bot_id,))
+            conn.commit()
+
+    def reset_tournament(self, capital_per_bot: float = 50.0):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM positions")
+            cursor.execute("DELETE FROM trades")
+            cursor.execute("DELETE FROM equity_snapshots")
+            cursor.execute("DELETE FROM parameter_adjustments")
+            cursor.execute("DELETE FROM research_logs")
+            cursor.execute("""
+                UPDATE bots SET
+                    current_balance = initial_capital,
+                    available_balance = initial_capital,
+                    total_pnl = 0.0,
+                    roi_pct = 0.0,
+                    win_rate = 0.0,
+                    total_trades = 0,
+                    winning_trades = 0,
+                    losing_trades = 0,
+                    max_drawdown = 0.0,
+                    peak_equity = initial_capital
+            """)
+            conn.commit()
+
     # --- Positions Management ---
     def save_position(self, pos: Dict[str, Any]):
         with self._get_connection() as conn:

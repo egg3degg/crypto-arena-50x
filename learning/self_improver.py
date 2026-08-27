@@ -4,8 +4,12 @@ Monitors bot performance, win-rates, drawdowns, and adapts strategy hyperparamet
 """
 import logging
 from typing import Dict, List, Any
-from ..core.database import ArenaDatabase
-from ..strategies.base_strategy import BaseStrategy
+try:
+    from core.database import ArenaDatabase
+    from strategies.base_strategy import BaseStrategy
+except (ImportError, ValueError):
+    from ..core.database import ArenaDatabase
+    from ..strategies.base_strategy import BaseStrategy
 
 logger = logging.getLogger("CryptoArena.SelfImprover")
 

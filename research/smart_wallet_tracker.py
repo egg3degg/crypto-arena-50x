@@ -9,7 +9,10 @@ import asyncio
 import random
 from typing import Dict, List, Any
 import aiohttp
-from ..core.database import ArenaDatabase
+try:
+    from core.database import ArenaDatabase
+except (ImportError, ValueError):
+    from ..core.database import ArenaDatabase
 
 logger = logging.getLogger("CryptoArena.SmartWalletTracker")
 

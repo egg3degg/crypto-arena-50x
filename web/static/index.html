@@ -2,12 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CryptoArena 50X - 5-Bot Trading Championship</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0a0e17">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CryptoArena">
+  <title>CryptoArena 50X - Autonomous Bot Championship & Analytics Hub</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -18,26 +22,31 @@
         <div class="logo-icon">⚡</div>
         <div>
           <h1>CRYPTO<span class="highlight">ARENA</span> 50X</h1>
-          <span class="sub-brand">7-Day $50 Strategy Championship & Self-Improving AI</span>
+          <span class="sub-brand">Institutional Multi-Bot Championship & Visual Analytics Hub</span>
         </div>
       </div>
 
       <div class="header-metrics">
         <div class="metric-card">
-          <span class="metric-label">STATUS</span>
+          <span class="metric-label">SERVER STATUS</span>
           <span class="metric-value status-online"><span class="pulse-dot"></span> 24/7 LIVE</span>
         </div>
         <div class="metric-card">
-          <span class="metric-label">TOTAL ALLOCATED</span>
-          <span class="metric-value">$250.00 <small>($50/bot)</small></span>
+          <span class="metric-label">ACTIVE BOTS</span>
+          <span class="metric-value" id="header-bot-count">5 Bots</span>
         </div>
         <div class="metric-card">
-          <span class="metric-label">TOTAL ARENA PnL</span>
+          <span class="metric-label">TOTAL PnL</span>
           <span class="metric-value" id="header-total-pnl">+$0.00</span>
         </div>
-        <button class="btn-live-switch" onclick="openLiveSwitchModal()">
-          🚀 1-Click Live Switch ($50)
-        </button>
+        <div class="header-actions">
+          <button class="btn-action btn-add-bot" onclick="openCreateBotModal()">
+            ➕ Deploy New Bot
+          </button>
+          <button class="btn-action btn-live-switch" onclick="openLiveSwitchModal()">
+            🚀 1-Click Live Switch ($50)
+          </button>
+        </div>
       </div>
     </header>
 
@@ -52,7 +61,8 @@
 
     <!-- Navigation Tabs -->
     <nav class="nav-tabs">
-      <button class="tab-btn active" onclick="switchTab('leaderboard')">🏆 Bot Leaderboard</button>
+      <button class="tab-btn active" onclick="switchTab('leaderboard')">🏆 Bot Command Center</button>
+      <button class="tab-btn" onclick="switchTab('analytics')">📊 Visual Analytics & Pie Charts</button>
       <button class="tab-btn" onclick="switchTab('chart')">📈 Performance Curves</button>
       <button class="tab-btn" onclick="switchTab('research')">🧠 Autonomous Deep Research</button>
       <button class="tab-btn" onclick="switchTab('learning')">⚙️ Self-Improvement AI</button>
@@ -62,35 +72,98 @@
     <!-- Tab Content -->
     <main class="main-content">
       
-      <!-- TAB 1: LEADERBOARD -->
+      <!-- TAB 1: LEADERBOARD & BOT CONTROLS -->
       <section id="tab-leaderboard" class="tab-pane active">
         <div class="section-title-row">
-          <h2>🏆 Real-Time Bot Championship Rankings</h2>
-          <span class="caption">Each bot trades independently with $50 simulated capital</span>
+          <div>
+            <h2>🏆 Bot Championship & Real-Time Control Matrix</h2>
+            <span class="caption">Monitor performance, adjust parameters on the fly, or pause/resume bots with 1 click</span>
+          </div>
+          <div class="quick-controls-bar">
+            <button class="btn-ctrl" onclick="toggleAllBots(true)">▶️ Resume All</button>
+            <button class="btn-ctrl btn-ctrl-danger" onclick="toggleAllBots(false)">⏸️ Pause All</button>
+          </div>
         </div>
 
         <div class="leaderboard-grid" id="leaderboard-container">
-          <!-- Dynamically populated via JS -->
-          <div class="loading-state">Initializing Arena Bots...</div>
+          <div class="loading-state">Connecting to Arena Engine...</div>
         </div>
       </section>
 
-      <!-- TAB 2: EQUITY CURVE CHART -->
+      <!-- TAB 2: VISUAL ANALYTICS & PIE CHARTS (NEW) -->
+      <section id="tab-analytics" class="tab-pane">
+        <div class="section-title-row">
+          <div>
+            <h2>📊 Visual Intelligence & Portfolio Analytics</h2>
+            <span class="caption">Real-time capital allocation, strategy performance breakdowns, and risk diagnostics</span>
+          </div>
+        </div>
+
+        <!-- Key Metrics Cards -->
+        <div class="analytics-kpi-grid">
+          <div class="kpi-card">
+            <span class="kpi-label">TOTAL ALLOCATED CAPITAL</span>
+            <span class="kpi-val" id="kpi-total-capital">$250.00</span>
+            <span class="kpi-sub">$50.00 / bot</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">OVERALL WIN RATE</span>
+            <span class="kpi-val" id="kpi-win-rate">0.0%</span>
+            <span class="kpi-sub" id="kpi-trades-count">0 Closed Trades</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">PROFIT FACTOR</span>
+            <span class="kpi-val" id="kpi-profit-factor">1.00</span>
+            <span class="kpi-sub">Gross Profit / Gross Loss</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">TOTAL VOLUME TRADED</span>
+            <span class="kpi-val" id="kpi-total-volume">$0.00</span>
+            <span class="kpi-sub" id="kpi-fees-paid">Est. Fees: $0.00</span>
+          </div>
+        </div>
+
+        <!-- Visual Charts Grid (Pie & Donut Charts) -->
+        <div class="charts-grid-3">
+          <div class="chart-card">
+            <h3>🥧 Asset Allocation Breakdown</h3>
+            <div class="chart-box">
+              <canvas id="allocationPieChart"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3>🎯 Win vs Loss Distribution</h3>
+            <div class="chart-box">
+              <canvas id="winLossDonutChart"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3>💰 Strategy PnL Contribution ($)</h3>
+            <div class="chart-box">
+              <canvas id="strategyBarChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: EQUITY CURVE CHART -->
       <section id="tab-chart" class="tab-pane">
         <div class="section-title-row">
-          <h2>📈 7-Day Multi-Bot Equity Growth Chart</h2>
-          <span class="caption">Simulated PnL curves incorporating 0.075% fee and slippage</span>
+          <h2>📈 Multi-Bot Real-Time Equity Curves</h2>
+          <span class="caption">Simulated PnL curves incorporating 0.075% fee, slippage, and compounding balance</span>
         </div>
         <div class="chart-wrapper">
           <canvas id="equityChart"></canvas>
         </div>
       </section>
 
-      <!-- TAB 3: AUTONOMOUS RESEARCH -->
+      <!-- TAB 4: AUTONOMOUS RESEARCH -->
       <section id="tab-research" class="tab-pane">
         <div class="section-title-row">
           <h2>🧠 Autonomous Market & Smart Wallet Intelligence</h2>
-          <span class="caption">Real-time regime classification and on-chain whale flow scanner</span>
+          <span class="caption">Real-time regime classification and on-chain whale accumulation scanner</span>
         </div>
 
         <div class="research-grid">
@@ -126,7 +199,7 @@
         </div>
       </section>
 
-      <!-- TAB 4: SELF-IMPROVEMENT AI -->
+      <!-- TAB 5: SELF-IMPROVEMENT AI -->
       <section id="tab-learning" class="tab-pane">
         <div class="section-title-row">
           <h2>⚙️ Self-Improvement & Parameter Adaptation Feed</h2>
@@ -152,7 +225,7 @@
         </div>
       </section>
 
-      <!-- TAB 5: TRADES & POSITIONS -->
+      <!-- TAB 6: TRADES & POSITIONS -->
       <section id="tab-trades" class="tab-pane">
         <div class="split-tables">
           <div class="table-card">
@@ -205,12 +278,134 @@
       </section>
     </main>
 
-    <!-- 1-Click Live Switch Modal -->
+    <!-- MODAL 1: CREATE NEW BOT -->
+    <div id="create-bot-modal" class="modal-overlay">
+      <div class="modal-box">
+        <div class="modal-header">
+          <h2>➕ Deploy New Trading Bot</h2>
+          <button class="close-btn" onclick="closeModal('create-bot-modal')">&times;</button>
+        </div>
+        <form onsubmit="handleCreateBotSubmit(event)">
+          <div class="form-group">
+            <label>Bot Name</label>
+            <input type="text" id="new-bot-name" placeholder="e.g. CyberScalper Pro" required>
+          </div>
+          <div class="form-group">
+            <label>Strategy Type</label>
+            <select id="new-bot-strat-type">
+              <option value="trend">Alpha Trend Momentum (EMA + SuperTrend + ADX)</option>
+              <option value="mean_revert">Bollinger Bands + RSI Oversold Bounce</option>
+              <option value="breakout">Donchian 20-High + Volume Surge Expansion</option>
+              <option value="grid">Dynamic ATR Geometric Micro-Grid</option>
+              <option value="smart_money">On-Chain Whale Flow & Smart Wallet Follower</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Initial Paper Capital ($ USD)</label>
+              <input type="number" id="new-bot-capital" value="50.0" step="10.0" min="20.0" required>
+            </div>
+            <div class="form-group">
+              <label>Stake Per Trade ($ USD)</label>
+              <input type="number" id="new-bot-stake" value="25.0" step="5.0" min="10.0" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Take Profit (%)</label>
+              <input type="number" id="new-bot-tp" value="4.5" step="0.5" min="1.0" required>
+            </div>
+            <div class="form-group">
+              <label>Stop Loss (%)</label>
+              <input type="number" id="new-bot-sl" value="2.5" step="0.5" min="0.5" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Description / Notes</label>
+            <input type="text" id="new-bot-desc" placeholder="Custom experimental strategy configuration">
+          </div>
+          <button type="submit" class="btn-submit">🚀 Launch Bot into Championship</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL 2: EDIT BOT PARAMETERS -->
+    <div id="edit-params-modal" class="modal-overlay">
+      <div class="modal-box">
+        <div class="modal-header">
+          <h2>⚙️ Adjust Parameters: <span id="edit-bot-title"></span></h2>
+          <button class="close-btn" onclick="closeModal('edit-params-modal')">&times;</button>
+        </div>
+        <form onsubmit="handleEditParamsSubmit(event)">
+          <input type="hidden" id="edit-bot-id">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Take Profit (%)</label>
+              <input type="number" id="edit-tp-pct" step="0.1" min="0.5" required>
+            </div>
+            <div class="form-group">
+              <label>Stop Loss (%)</label>
+              <input type="number" id="edit-sl-pct" step="0.1" min="0.5" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Trailing Stop (%) (Optional)</label>
+              <input type="number" id="edit-trail-pct" step="0.1" min="0.0">
+            </div>
+            <div class="form-group">
+              <label>Stake Per Trade ($ USD)</label>
+              <input type="number" id="edit-stake-usd" step="5.0" min="10.0" required>
+            </div>
+          </div>
+          <button type="submit" class="btn-submit">💾 Apply Live Parameter Updates</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL 3: MANUAL TRADE OVERRIDE -->
+    <div id="manual-trade-modal" class="modal-overlay">
+      <div class="modal-box">
+        <div class="modal-header">
+          <h2>⚡ Manual Order Override: <span id="manual-bot-title"></span></h2>
+          <button class="close-btn" onclick="closeModal('manual-trade-modal')">&times;</button>
+        </div>
+        <form onsubmit="handleManualTradeSubmit(event)">
+          <input type="hidden" id="manual-bot-id">
+          <div class="form-group">
+            <label>Trading Pair</label>
+            <select id="manual-symbol">
+              <option value="SOL/USDT">SOL/USDT</option>
+              <option value="ETH/USDT">ETH/USDT</option>
+              <option value="BTC/USDT">BTC/USDT</option>
+              <option value="AVAX/USDT">AVAX/USDT</option>
+              <option value="NEAR/USDT">NEAR/USDT</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Order Side</label>
+              <select id="manual-side">
+                <option value="BUY">🟢 BUY / LONG</option>
+                <option value="SELL">🔴 SELL / CLOSE</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Order Size ($ USD)</label>
+              <input type="number" id="manual-amount" value="25.0" step="5.0" min="10.0" required>
+            </div>
+          </div>
+          <button type="submit" class="btn-submit">⚡ Execute Instant Order</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL 4: 1-CLICK LIVE SWITCH -->
     <div id="live-switch-modal" class="modal-overlay">
       <div class="modal-box">
         <div class="modal-header">
           <h2>🚀 Deploy #1 Champion Strategy to Live $50</h2>
-          <button class="close-btn" onclick="closeLiveSwitchModal()">&times;</button>
+          <button class="close-btn" onclick="closeModal('live-switch-modal')">&times;</button>
         </div>
         <div class="modal-body" id="modal-body-content">
           <p>Loading winner metrics...</p>
