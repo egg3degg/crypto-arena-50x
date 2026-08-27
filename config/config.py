@@ -13,12 +13,12 @@ DB_PATH = DATA_DIR / "crypto_arena.db"
 # Tournament Settings
 TOURNAMENT_NAME = "CryptoArena 50X - 7-Day Multi-Bot Alpha Cup"
 INITIAL_CAPITAL_USD = 50.00
-FEE_RATE = 0.00075  # 0.075% standard maker/taker fee
-SLIPPAGE_RATE = 0.0005  # 0.05% realistic slippage simulation
-MIN_ORDER_USD = 10.00  # Minimum order size per trade
+FEE_RATE = 0.00075  # 0.075% standard maker/taker fee (realistic Binance/Bybit VIP0)
+SLIPPAGE_RATE = 0.0005  # 0.05% realistic market spread & slippage simulation
+MIN_ORDER_USD = 10.00  # Minimum order size per trade ($10-$25)
 MAX_OPEN_TRADES_PER_BOT = 2  # Allows 2 concurrent $25 positions
 
-# Trading Pairs (Expandable dynamically via Web UI)
+# Trading Pairs (High Liquidity, Majors, Memes & AI)
 TRADING_PAIRS = [
     "SOL/USDT",
     "ETH/USDT",
@@ -27,7 +27,10 @@ TRADING_PAIRS = [
     "NEAR/USDT",
     "SUI/USDT",
     "DOGE/USDT",
-    "LINK/USDT"
+    "PENGU/USDT",
+    "PEPE/USDT",
+    "WIF/USDT",
+    "RENDER/USDT"
 ]
 
 # Market Data Settings

@@ -65,18 +65,23 @@
       <div class="ticker-item"><span class="sym">NEAR/USDT</span> <span class="price">$---</span></div>
       <div class="ticker-item"><span class="sym">SUI/USDT</span> <span class="price">$---</span></div>
       <div class="ticker-item"><span class="sym">DOGE/USDT</span> <span class="price">$---</span></div>
+      <div class="ticker-item"><span class="sym">PENGU/USDT</span> <span class="price">$---</span></div>
+      <div class="ticker-item"><span class="sym">PEPE/USDT</span> <span class="price">$---</span></div>
+      <div class="ticker-item"><span class="sym">WIF/USDT</span> <span class="price">$---</span></div>
+      <div class="ticker-item"><span class="sym">RENDER/USDT</span> <span class="price">$---</span></div>
     </div>
 
     <!-- Navigation Tabs -->
     <nav class="nav-tabs">
       <button class="tab-btn active" onclick="switchTab('leaderboard')">🏆 Bot Command Center</button>
       <button class="tab-btn" onclick="switchTab('polymarket')">🔮 Polymarket Terminal</button>
-      <button class="tab-btn" onclick="switchTab('candlestick')">🕯️ Interactive Candlestick Charts</button>
+      <button class="tab-btn" onclick="switchTab('candlestick')">🕯️ Candlestick Charts</button>
       <button class="tab-btn" onclick="switchTab('analytics')">📊 Visual Analytics & Pie Charts</button>
       <button class="tab-btn" onclick="switchTab('backtest')">🧪 30-Day Backtester</button>
-      <button class="tab-btn" onclick="switchTab('research')">🧠 Autonomous Deep Research</button>
+      <button class="tab-btn" onclick="switchTab('research')">🧠 Deep Research & Sentiment</button>
       <button class="tab-btn" onclick="switchTab('learning')">⚙️ Self-Improvement AI</button>
-      <button class="tab-btn" onclick="switchTab('trades')">⚡ Live Trades & Positions</button>
+      <button class="tab-btn" onclick="switchTab('trades')">⚡ Live Trades</button>
+      <button class="tab-btn" onclick="switchTab('docs')" style="color:var(--gold); border-color:rgba(251,191,36,0.3);">📚 Documentation & Guide</button>
     </nav>
 
     <!-- Main Content Area -->
@@ -100,7 +105,7 @@
         </div>
       </section>
 
-      <!-- TAB 2: POLYMARKET PREDICTION MARKET TERMINAL (NEW) -->
+      <!-- TAB 2: POLYMARKET PREDICTION MARKET TERMINAL -->
       <section id="tab-polymarket" class="tab-pane">
         <div class="section-title-row">
           <div>
@@ -124,7 +129,7 @@
         </div>
       </section>
 
-      <!-- TAB 3: CANDLESTICK CHARTS (NEW) -->
+      <!-- TAB 3: CANDLESTICK CHARTS -->
       <section id="tab-candlestick" class="tab-pane">
         <div class="section-title-row">
           <div>
@@ -141,6 +146,10 @@
               <option value="NEAR/USDT">NEAR/USDT</option>
               <option value="SUI/USDT">SUI/USDT</option>
               <option value="DOGE/USDT">DOGE/USDT</option>
+              <option value="PENGU/USDT">PENGU/USDT</option>
+              <option value="PEPE/USDT">PEPE/USDT</option>
+              <option value="WIF/USDT">WIF/USDT</option>
+              <option value="RENDER/USDT">RENDER/USDT</option>
             </select>
           </div>
         </div>
@@ -208,7 +217,7 @@
         </div>
       </section>
 
-      <!-- TAB 5: BACKTEST PLAYGROUND (NEW) -->
+      <!-- TAB 5: BACKTEST PLAYGROUND -->
       <section id="tab-backtest" class="tab-pane">
         <div class="section-title-row">
           <div>
@@ -243,6 +252,10 @@
                   <option value="NEAR/USDT">NEAR/USDT</option>
                   <option value="SUI/USDT">SUI/USDT</option>
                   <option value="DOGE/USDT">DOGE/USDT</option>
+                  <option value="PENGU/USDT">PENGU/USDT</option>
+                  <option value="PEPE/USDT">PEPE/USDT</option>
+                  <option value="WIF/USDT">WIF/USDT</option>
+                  <option value="RENDER/USDT">RENDER/USDT</option>
                 </select>
               </div>
               <div class="form-row">
@@ -287,7 +300,7 @@
             <div id="regime-content" class="card-body">Scanning market dynamics...</div>
           </div>
 
-          <!-- Sentiment & Fear/Greed Card (NEW) -->
+          <!-- Sentiment & Fear/Greed Card -->
           <div class="research-card">
             <h3>🌡️ Fear & Greed Sentiment Radar</h3>
             <div id="sentiment-content" class="card-body">
@@ -393,8 +406,99 @@
           </div>
         </div>
       </section>
+
+      <!-- TAB 9: COMPREHENSIVE DOCUMENTATION & GUIDE HUB (NEW) -->
+      <section id="tab-docs" class="tab-pane">
+        <div class="section-title-row">
+          <div>
+            <h2>📚 System Documentation, Execution Mechanics & User Guide</h2>
+            <span class="caption">Everything you need to know about fees, bot strategies, the 1-Click Live Switch, and safety</span>
+          </div>
+        </div>
+
+        <div class="docs-container">
+          <!-- Section 1: Realistic Fees & Execution Simulation -->
+          <div class="doc-card">
+            <h3>💰 1. Realistic Fees, Slippage & Execution Accuracy</h3>
+            <p>To ensure simulated paper profits translate 1-to-1 to real exchange money without painful surprises, our simulation engine strictly enforces:</p>
+            <div class="doc-pill-list">
+              <div class="doc-pill">
+                <strong>0.075% Exchange Fee:</strong> Deducted on every single Buy and Sell order (identical to standard Binance/Bybit VIP0 spot maker/taker with BNB discount).
+              </div>
+              <div class="doc-pill">
+                <strong>0.05% Market Slippage:</strong> Models real-world bid-ask spread and execution latency so market orders never fill at unrealistic theoretical prices.
+              </div>
+              <div class="doc-pill">
+                <strong>$10 Min Order Sizing:</strong> Enforces standard exchange minimum order constraints ($10-$25 stake per trade).
+              </div>
+              <div class="doc-pill">
+                <strong>Dynamic Trailing Stops:</strong> Ratchets stop-loss upward as profit expands to lock in gains automatically.
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Strategy Architecture of the 6 Competing Bots -->
+          <div class="doc-card">
+            <h3>🤖 2. Competing Bot Strategies Breakdown ($50 Capital Each)</h3>
+            <div class="doc-grid-2">
+              <div class="doc-subcard">
+                <h4>🥇 Bot 1: AlphaTrend (Trend Momentum)</h4>
+                <p>Combines multi-timeframe EMA Ribbon (20/50/200), SuperTrend, and ADX > 22. Enters when strong institutional trending direction is confirmed.</p>
+              </div>
+              <div class="doc-subcard">
+                <h4>🥈 Bot 2: MeanRevert (Bollinger + RSI Scalper)</h4>
+                <p>Scalps choppy and ranging markets by identifying extreme statistical deviations (price touching lower Bollinger Band while RSI &lt; 36).</p>
+              </div>
+              <div class="doc-subcard">
+                <h4>🥉 Bot 3: BreakoutHunter (Donchian Volume Expansion)</h4>
+                <p>Detects volatility compression and rides explosive breakouts above 20-period Donchian highs when trading volume surges > 1.6x average.</p>
+              </div>
+              <div class="doc-subcard">
+                <h4>⚙️ Bot 4: AdaptiveGrid (Dynamic ATR Market Maker)</h4>
+                <p>Places dynamic geometric micro-grid accumulation orders centered around dynamic VWAP/EMA, profiting continuously from everyday price oscillations.</p>
+              </div>
+              <div class="doc-subcard">
+                <h4>🐋 Bot 5: SmartMoneyTracker (On-Chain Whale Mirror)</h4>
+                <p>Scans on-chain DEX transactions for top profitable smart wallets and CEX whale inflows to mirror smart money accumulation.</p>
+              </div>
+              <div class="doc-subcard" style="border-color:var(--accent-purple);">
+                <h4 style="color:var(--accent-purple);">🔮 Bot 6: PolyPredictor (Polymarket Arbitrage)</h4>
+                <p>Ingests real Polymarket prediction markets. Calculates quantitative probability from spot trend momentum and buys undervalued YES/NO shares when edge > 10%.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3: The 1-Click Live Switch Button -->
+          <div class="doc-card">
+            <h3>🚀 3. What is the "1-Click Live Switch ($50)" Green Button?</h3>
+            <p>After your 7-day tournament concludes, one of the 6 bots will be crowned the **#1 Champion** (highest net ROI, win rate, and profit factor after self-tuning).</p>
+            <p style="margin-top:8px;">Clicking <strong>"🚀 1-Click Live Switch"</strong>:</p>
+            <ol style="margin-left: 20px; line-height: 1.8; margin-top:8px; font-size:13px;">
+              <li>Exports the champion bot's fine-tuned strategy and optimized parameters into <code>champion_strategy_config.json</code>.</li>
+              <li>Generates a ready-to-run execution command to connect your real \$50 on Binance, Bybit, or OKX.</li>
+              <li>Runs in live production mode with your exchange API keys.</li>
+            </ol>
+            <div class="code-box" style="margin-top:10px;">
+              # Run Live Champion Deployment with real $50:<br>
+              python live_switch.py --deploy --capital 50 --api-key YOUR_KEY --api-secret YOUR_SECRET
+            </div>
+          </div>
+
+          <!-- Section 4: Security & Safety Best Practices -->
+          <div class="doc-card">
+            <h3>🔒 4. Exchange API Security Protocol</h3>
+            <p>When creating your Binance, Bybit, or OKX API key to deploy real money:</p>
+            <ul style="margin-left: 20px; line-height: 1.8; margin-top:8px; font-size:13px;">
+              <li>✅ <strong>Enable Spot Trading:</strong> Allows the bot to place buy and sell spot orders.</li>
+              <li>⛔ <strong>Keep Withdrawals DISABLED:</strong> Never enable withdrawal permissions on trading API keys. Even if the key is compromised, funds cannot leave your account.</li>
+              <li>🛡️ <strong>IP Whitelist (Optional):</strong> For maximum security, restrict the API key to your Google Cloud VM External IP (<code>8.234.126.146</code>).</li>
+            </ul>
+          </div>
+        </div>
+      </section>
     </main>
 
+    <!-- MODALS -->
     <!-- MODAL 1: CREATE NEW BOT -->
     <div id="create-bot-modal" class="modal-overlay">
       <div class="modal-box">
@@ -500,6 +604,10 @@
               <option value="NEAR/USDT">NEAR/USDT</option>
               <option value="SUI/USDT">SUI/USDT</option>
               <option value="DOGE/USDT">DOGE/USDT</option>
+              <option value="PENGU/USDT">PENGU/USDT</option>
+              <option value="PEPE/USDT">PEPE/USDT</option>
+              <option value="WIF/USDT">WIF/USDT</option>
+              <option value="RENDER/USDT">RENDER/USDT</option>
             </select>
           </div>
           <div class="form-row">
@@ -520,7 +628,7 @@
       </div>
     </div>
 
-    <!-- MODAL 4: MULTI-COIN MANAGER (NEW) -->
+    <!-- MODAL 4: MULTI-COIN MANAGER -->
     <div id="pairs-modal" class="modal-overlay">
       <div class="modal-box">
         <div class="modal-header">
@@ -531,7 +639,7 @@
           <div class="form-group">
             <label>Add New Trading Pair</label>
             <div style="display:flex; gap:10px;">
-              <input type="text" id="add-pair-input" placeholder="e.g. PEPE/USDT or BNB/USDT" style="flex:1;">
+              <input type="text" id="add-pair-input" placeholder="e.g. TAO/USDT or INJ/USDT" style="flex:1;">
               <button class="btn-action btn-add-bot" onclick="handleAddPair()">➕ Add Pair</button>
             </div>
           </div>
@@ -541,7 +649,7 @@
       </div>
     </div>
 
-    <!-- MODAL 5: TELEGRAM ALERTS SETUP (NEW) -->
+    <!-- MODAL 5: TELEGRAM ALERTS SETUP -->
     <div id="telegram-modal" class="modal-overlay">
       <div class="modal-box">
         <div class="modal-header">
