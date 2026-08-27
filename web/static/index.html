@@ -33,7 +33,7 @@
         </div>
         <div class="metric-card">
           <span class="metric-label">ACTIVE BOTS</span>
-          <span class="metric-value" id="header-bot-count">9 Bots ($450)</span>
+          <span class="metric-value" id="header-bot-count">10 Bots ($500)</span>
         </div>
         <div class="metric-card">
           <span class="metric-label">TOTAL PnL</span>
@@ -76,7 +76,7 @@
     <nav class="nav-tabs">
       <button class="tab-btn active" onclick="switchTab('leaderboard')">🏆 Bot Command Center</button>
       <button class="tab-btn" onclick="switchTab('trajectory')" style="color:var(--accent-cyan); border-color:rgba(6,182,212,0.3);">📈 Balance Trajectory & Trade Dots</button>
-      <button class="tab-btn" onclick="switchTab('polymarket')">🔮 Polymarket Terminal</button>
+      <button class="tab-btn" onclick="switchTab('polymarket')">🔮 Polymarket Terminal & Whale Copy</button>
       <button class="tab-btn" onclick="switchTab('candlestick')">🕯️ Candlestick Charts</button>
       <button class="tab-btn" onclick="switchTab('analytics')">📊 Portfolio Analytics</button>
       <button class="tab-btn" onclick="switchTab('backtest')">🧪 30-Day Backtester</button>
@@ -94,7 +94,7 @@
         <div class="section-title-row">
           <div>
             <h2>🏆 Multi-Bot Championship & Real-Time Matrix</h2>
-            <span class="caption">9 autonomous bots ($50 each): Crypto, Polymarket, Indian Stocks (NSE), and Hyperliquid Commodities</span>
+            <span class="caption">10 autonomous bots ($50 each): Crypto, Polymarket Arbitrage & Whale Copy, Indian Stocks (NSE), and Hyperliquid Commodities</span>
           </div>
           <div class="quick-controls-bar">
             <button class="btn-ctrl" onclick="toggleAllBots(true)">▶️ Resume All</button>
@@ -107,7 +107,7 @@
         </div>
       </section>
 
-      <!-- TAB 2: BALANCE TRAJECTORY & TRADE DOTS (NEW) -->
+      <!-- TAB 2: BALANCE TRAJECTORY & TRADE DOTS -->
       <section id="tab-trajectory" class="tab-pane">
         <div class="section-title-row">
           <div>
@@ -117,7 +117,7 @@
           <div class="chart-pair-selector">
             <label>Select Bot View: </label>
             <select id="trajectory-bot-select" onchange="renderTrajectoryChart()">
-              <option value="ALL">All 9 Bots (Comparative Trajectory)</option>
+              <option value="ALL">All 10 Bots (Comparative Trajectory)</option>
               <option value="bot_1_alphatrend">AlphaTrend (Crypto Trend)</option>
               <option value="bot_2_meanrevert">MeanRevert (Crypto Scalper)</option>
               <option value="bot_3_breakouthunter">BreakoutHunter (Memes: PENGU/PEPE)</option>
@@ -127,6 +127,7 @@
               <option value="bot_7_bharatbreakout">BharatBreakout (NSE Indian Stock)</option>
               <option value="bot_8_desimeanrevert">DesiMeanRevert (NSE Equities Scalper)</option>
               <option value="bot_9_hypergoldsilver">HyperGoldSilver (Hyperliquid Commodities)</option>
+              <option value="bot_10_polywhalecopy">PolyWhaleCopy (Polymarket Whale Mirror)</option>
             </select>
           </div>
         </div>
@@ -146,21 +147,30 @@
       <section id="tab-polymarket" class="tab-pane">
         <div class="section-title-row">
           <div>
-            <h2>🔮 Polymarket Live Events & Probability Arbitrage (Bot 6)</h2>
-            <span class="caption">Real-time prediction markets, implied odds vs spot momentum, and automated YES/NO trading</span>
+            <h2>🔮 Polymarket Live Events & Whale Copy-Trading (Bot 6 & Bot 10)</h2>
+            <span class="caption">Real-time prediction markets, implied odds vs spot momentum, and automated Whale Mirroring</span>
           </div>
         </div>
 
-        <div class="poly-overview-grid">
+        <div class="poly-overview-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
           <div class="poly-info-card">
-            <h3>🤖 PolyPredictor Strategy Mechanics</h3>
-            <p><strong>Bot 6</strong> continuously scans live Polymarket orderbooks. When quantitative spot technical momentum diverges by >10% from market share prices, it takes high-probability directional positions.</p>
-            <div style="margin-top:12px; font-family:'JetBrains Mono'; font-size:12px; color:var(--accent-cyan);">
-              • Allocated Capital: $50.00 | Stake per Event: $20.00 | Target Margin: +35%
+            <h3>🤖 Bot 6: PolyPredictor (Odds Arbitrage)</h3>
+            <p>Calculates mathematical fair value from spot momentum. Takes positions when market odds diverge by >10%.</p>
+            <div style="margin-top:10px; font-family:'JetBrains Mono'; font-size:12px; color:var(--accent-cyan);">
+              • Capital: $50.00 | Stake: $20.00 | Profit Target: +35%
+            </div>
+          </div>
+
+          <div class="poly-info-card" style="border-color:var(--accent-green);">
+            <h3 style="color:var(--accent-green);">🐋 Bot 10: PolyWhaleCopy (Whale Mirror)</h3>
+            <p>Continuously tracks top Polymarket wallets (>74% win-rate) on Polygon and auto-replicates their high-conviction bets.</p>
+            <div style="margin-top:10px; font-family:'JetBrains Mono'; font-size:12px; color:var(--accent-green);">
+              • Capital: $50.00 | Copy Stake: $20.00 | Real Polygon Ready
             </div>
           </div>
         </div>
 
+        <h3 style="margin: 20px 0 12px 0; font-size:16px; color:var(--accent-purple);">🔥 Live Active Prediction Markets</h3>
         <div class="poly-markets-grid" id="poly-markets-container">
           <div class="loading-state">Fetching live Polymarket prediction events...</div>
         </div>
@@ -514,13 +524,17 @@
                 <h4 style="color:var(--accent-cyan);">🥇 Bot 9: HyperGoldSilver (Hyperliquid Commodities)</h4>
                 <p>Trades Gold (XAU) & Silver (XAG) perps on Hyperliquid L1 DEX with macro trend-following & volatility breakouts. Ready for real Arbitrum wallet execution!</p>
               </div>
+              <div class="doc-subcard" style="border-color:var(--accent-green);">
+                <h4 style="color:var(--accent-green);">🐋 Bot 10: PolyWhaleCopy (Polymarket Copy-Trader)</h4>
+                <p>Auto-scans and copies top verified Polymarket wallets (>74% win rate) in real time via Polygon. Ready for real money execution via Polymarket CLOB (<code>py-clob-client</code>).</p>
+              </div>
             </div>
           </div>
 
           <!-- Section 3: The 1-Click Live Switch Button -->
           <div class="doc-card">
             <h3>🚀 3. What is the "1-Click Live Switch ($50)" Green Button?</h3>
-            <p>After your 7-day tournament concludes, one of the 9 bots will be crowned the **#1 Champion** (highest net ROI, win rate, and profit factor after self-tuning).</p>
+            <p>After your 7-day tournament concludes, one of the 10 bots will be crowned the **#1 Champion** (highest net ROI, win rate, and profit factor after self-tuning).</p>
             <p style="margin-top:8px;">Clicking <strong>"🚀 1-Click Live Switch"</strong>:</p>
             <ol style="margin-left: 20px; line-height: 1.8; margin-top:8px; font-size:13px;">
               <li>Exports the champion bot's fine-tuned strategy and optimized parameters into <code>champion_strategy_config.json</code>.</li>

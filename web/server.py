@@ -294,6 +294,15 @@ async def get_polymarket_events():
         return []
     return engine.get_polymarket_events()
 
+@app.get("/api/polymarket-whales")
+async def get_polymarket_whales():
+    if not engine:
+        return {"leaderboard": [], "active_bets": []}
+    return {
+        "leaderboard": engine.get_polymarket_whales(),
+        "active_bets": engine.get_polymarket_whale_bets()
+    }
+
 @app.post("/api/backtest")
 async def run_backtest_endpoint(payload: Dict[str, Any]):
     if not engine:

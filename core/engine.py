@@ -23,10 +23,12 @@ try:
     from strategies.indian_stock_breakout import BharatBreakoutStrategy
     from strategies.indian_stock_meanrevert import DesiMeanRevertStrategy
     from strategies.hyperliquid_gold_silver import HyperliquidGoldSilverStrategy
+    from strategies.polymarket_whale_copy import PolymarketWhaleCopyStrategy
     from research.regime_analyzer import MarketRegimeAnalyzer
     from research.smart_wallet_tracker import SmartWalletTracker
     from research.sentiment_analyzer import SentimentAnalyzer
     from research.polymarket_feed import PolymarketFeed
+    from research.polymarket_whale_tracker import PolymarketWhaleTracker
     from research.indian_market_feed import IndianAndCommodityFeed
     from core.backtester import StrategyBacktester
     from learning.self_improver import SelfImprovementEngine
@@ -47,10 +49,12 @@ except (ImportError, ValueError):
     from ..strategies.indian_stock_breakout import BharatBreakoutStrategy
     from ..strategies.indian_stock_meanrevert import DesiMeanRevertStrategy
     from ..strategies.hyperliquid_gold_silver import HyperliquidGoldSilverStrategy
+    from ..strategies.polymarket_whale_copy import PolymarketWhaleCopyStrategy
     from ..research.regime_analyzer import MarketRegimeAnalyzer
     from ..research.smart_wallet_tracker import SmartWalletTracker
     from ..research.sentiment_analyzer import SentimentAnalyzer
     from ..research.polymarket_feed import PolymarketFeed
+    from ..research.polymarket_whale_tracker import PolymarketWhaleTracker
     from ..research.indian_market_feed import IndianAndCommodityFeed
     from ..learning.self_improver import SelfImprovementEngine
     from ..notifications.notifier import ArenaNotifier
@@ -73,13 +77,14 @@ class TournamentEngine:
         self.smart_wallet_tracker = SmartWalletTracker(self.db)
         self.sentiment_analyzer = SentimentAnalyzer(self.db)
         self.polymarket_feed = PolymarketFeed()
+        self.polymarket_whale_tracker = PolymarketWhaleTracker()
         self.backtester = StrategyBacktester(self.market_feed)
         self.notifier = ArenaNotifier(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID)
 
         # Dynamic trading pairs
         self.active_trading_pairs = list(config.TRADING_PAIRS)
 
-        # Initialize all 9 Bots, Wallets & Strategies
+        # Initialize all 10 Bots, Wallets & Strategies
         self.bots: Dict[str, Dict[str, Any]] = {}
         self.strategies: Dict[str, BaseStrategy] = {}
         self.wallets: Dict[str, PaperWallet] = {}
@@ -159,6 +164,13 @@ class TournamentEngine:
                 'strategy_name': 'Hyperliquid Gold (XAU) & Silver (XAG) Macro Perp Bot',
                 'description': 'Trades Gold & Silver perps on Hyperliquid L1 DEX with macro trend-following & volatility breakouts.',
                 'strategy_class': HyperliquidGoldSilverStrategy
+            },
+            {
+                'id': 'bot_10_polywhalecopy',
+                'name': 'PolyWhaleCopy (Polymarket Whale Mirror)',
+                'strategy_name': 'Polymarket Smart Wallet Copy-Trader',
+                'description': 'Monitors top profitable Polymarket whales (>74% win rate) and auto-copies their high-conviction prediction bets.',
+                'strategy_class': PolymarketWhaleCopyStrategy
             }
         ]
 
@@ -207,6 +219,12 @@ class TournamentEngine:
     def get_polymarket_events(self) -> List[Dict[str, Any]]:
         return self.polymarket_feed.fetch_crypto_prediction_markets()
 
+    def get_polymarket_whales(self) -> List[Dict[str, Any]]:
+        return self.polymarket_whale_tracker.fetch_top_traders()
+
+    def get_polymarket_whale_bets(self) -> List[Dict[str, Any]]:
+        return self.polymarket_whale_tracker.fetch_whale_active_bets()
+
     def run_backtest(self, strategy_type: str, symbol: str, tp: float, sl: float, stake: float) -> Dict[str, Any]:
         return self.backtester.run_backtest(
             strategy_type=strategy_type,
@@ -233,10 +251,11 @@ class TournamentEngine:
         return candles[-60:] # Last 60 candles for chart
 
     async def run_tick(self):
-        """Executes one evaluation cycle across all symbols and all 9 bots."""
+        """Executes one evaluation cycle across all symbols and all 10 bots."""
         symbol_dfs = {}
         tickers = {}
         poly_events = self.get_polymarket_events()
+        poly_whale_bets = self.get_polymarket_whale_bets()
 
         # 1. Ingest Market Data for all Active Crypto Pairs
         for symbol in self.active_trading_pairs:
@@ -292,6 +311,15 @@ class TournamentEngine:
                         open_positions=open_positions,
                         available_balance=avail_balance,
                         polymarket_events=poly_events
+                    )
+                elif bot_id == 'bot_10_polywhalecopy':
+                    decision = strategy.evaluate(
+                        symbol=symbol,
+                        df=df,
+                        ticker=ticker,
+                        open_positions=open_positions,
+                        available_balance=avail_balance,
+                        whale_bets=poly_whale_bets
                     )
                 else:
                     decision = strategy.evaluate(
