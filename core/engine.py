@@ -278,17 +278,22 @@ class TournamentEngine:
         poly_events = self.get_polymarket_events()
         poly_whale_bets = self.get_polymarket_whale_bets()
 
-        # 1. Ingest Market Data for all Active Crypto Pairs
-        for symbol in self.active_trading_pairs:
-            ticker = self.market_feed.fetch_ticker(symbol)
-            df = self.market_feed.fetch_ohlcv_dataframe(symbol)
-            tickers[symbol] = ticker
-            symbol_dfs[symbol] = df
+        # 1. Concurrently Ingest Market Data for all Active Crypto Pairs
+        async def fetch_crypto_asset(sym):
+            t = await self.market_feed.async_fetch_ticker(sym)
+            d = await self.market_feed.async_fetch_ohlcv_dataframe(sym)
+            return sym, t, d
 
-            for bot_id, wallet in self.wallets.items():
-                wallet.update_open_positions_market_price(symbol, ticker['price'])
+        crypto_results = await asyncio.gather(*[fetch_crypto_asset(s) for s in self.active_trading_pairs], return_exceptions=True)
+        for res in crypto_results:
+            if isinstance(res, tuple) and len(res) == 3:
+                sym, ticker, df = res
+                tickers[sym] = ticker
+                symbol_dfs[sym] = df
+                for bot_id, wallet in self.wallets.items():
+                    wallet.update_open_positions_market_price(sym, ticker['price'])
 
-        # Ingest Indian Stock Market & Commodity Feeds
+        # Ingest Indian Stock Market & Commodity Feeds (Simulated Models)
         indian_symbols = ["RELIANCE", "TATAMOTORS", "NIFTY50", "HDFCBANK"]
         commodity_symbols = ["GOLD/USD", "SILVER/USD"]
         for sym in indian_symbols + commodity_symbols:

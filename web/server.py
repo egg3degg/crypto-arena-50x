@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Depends, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -47,13 +47,41 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="CryptoArena 50X Control Dashboard", version="1.0.0", lifespan=lifespan)
 
+ARENA_API_KEY = os.getenv("ARENA_API_KEY", "arena-secret-key-2026")
+
+# Restrict CORS to authorized origins and cloudflare/render tunnel patterns
+ALLOWED_ORIGINS = [
+    "http://localhost:8088",
+    "http://127.0.0.1:8088",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"https://.*\.trycloudflare\.com|https://.*\.onrender\.com|https://.*\.vercel\.app|http://.*",
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+async def verify_admin_access(request: Request, x_api_key: Optional[str] = Header(None)):
+    """Verifies that mutation operations come from authorized dashboard session or loopback."""
+    query_key = request.query_params.get("api_key")
+    client_ip = request.client.host if request.client else ""
+    
+    # Allow local connections
+    if client_ip in ["127.0.0.1", "::1", "localhost"]:
+        return True
+        
+    provided_key = x_api_key or query_key
+    if provided_key != ARENA_API_KEY:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized: Valid X-API-Key header or api_key parameter required for administrative operations."
+        )
+    return True
 
 class ConnectionManager:
     def __init__(self):
@@ -236,8 +264,8 @@ async def export_winner():
     }
     return export_payload
 
-# --- Bot Control Endpoints ---
-@app.post("/api/bots/{bot_id}/toggle")
+# --- Bot Control Endpoints (Secured with verify_admin_access) ---
+@app.post("/api/bots/{bot_id}/toggle", dependencies=[Depends(verify_admin_access)])
 async def toggle_bot(bot_id: str, payload: Dict[str, Any]):
     if not engine:
         return JSONResponse(status_code=500, content={"error": "Engine not running"})
@@ -245,21 +273,21 @@ async def toggle_bot(bot_id: str, payload: Dict[str, Any]):
     success = engine.toggle_bot(bot_id, is_active)
     return {"bot_id": bot_id, "is_active": is_active, "success": success}
 
-@app.post("/api/bots/{bot_id}/liquidate")
+@app.post("/api/bots/{bot_id}/liquidate", dependencies=[Depends(verify_admin_access)])
 async def liquidate_bot(bot_id: str):
     if not engine:
         return JSONResponse(status_code=500, content={"error": "Engine not running"})
     closed_trades = engine.liquidate_bot(bot_id)
     return {"bot_id": bot_id, "closed_trades_count": len(closed_trades), "trades": closed_trades}
 
-@app.post("/api/bots/{bot_id}/params")
+@app.post("/api/bots/{bot_id}/params", dependencies=[Depends(verify_admin_access)])
 async def update_bot_params(bot_id: str, payload: Dict[str, Any]):
     if not engine:
         return JSONResponse(status_code=500, content={"error": "Engine not running"})
     success = engine.update_bot_params(bot_id, payload)
     return {"bot_id": bot_id, "success": success, "updated_params": payload}
 
-@app.post("/api/bots/create")
+@app.post("/api/bots/create", dependencies=[Depends(verify_admin_access)])
 async def create_bot(payload: Dict[str, Any]):
     if not engine:
         return JSONResponse(status_code=500, content={"error": "Engine not running"})
@@ -278,7 +306,7 @@ async def create_bot(payload: Dict[str, Any]):
     )
     return {"success": True, "bot": bot_info}
 
-@app.post("/api/bots/{bot_id}/manual-order")
+@app.post("/api/bots/{bot_id}/manual-order", dependencies=[Depends(verify_admin_access)])
 async def manual_order(bot_id: str, payload: Dict[str, Any]):
     if not engine:
         return JSONResponse(status_code=500, content={"error": "Engine not running"})
@@ -288,7 +316,7 @@ async def manual_order(bot_id: str, payload: Dict[str, Any]):
     result = engine.execute_manual_trade(bot_id, symbol, side, usd_amount)
     return {"success": bool(result), "result": result}
 
-@app.post("/api/tournament/reset")
+@app.post("/api/tournament/reset", dependencies=[Depends(verify_admin_access)])
 async def reset_tournament_api(payload: Dict[str, Any] = None):
     if not engine:
         return JSONResponse(status_code=500, content={"error": "Engine not running"})
@@ -342,7 +370,7 @@ async def get_pairs():
         return config.TRADING_PAIRS
     return engine.active_trading_pairs
 
-@app.post("/api/pairs/add")
+@app.post("/api/pairs/add", dependencies=[Depends(verify_admin_access)])
 async def add_pair(payload: Dict[str, Any]):
     if not engine:
         return JSONResponse(status_code=500, content={"error": "Engine not running"})
@@ -350,7 +378,7 @@ async def add_pair(payload: Dict[str, Any]):
     success = engine.add_trading_pair(pair)
     return {"success": success, "pairs": engine.active_trading_pairs}
 
-@app.post("/api/pairs/remove")
+@app.post("/api/pairs/remove", dependencies=[Depends(verify_admin_access)])
 async def remove_pair(payload: Dict[str, Any]):
     if not engine:
         return JSONResponse(status_code=500, content={"error": "Engine not running"})
@@ -358,7 +386,7 @@ async def remove_pair(payload: Dict[str, Any]):
     success = engine.remove_trading_pair(pair)
     return {"success": success, "pairs": engine.active_trading_pairs}
 
-@app.post("/api/telegram/test")
+@app.post("/api/telegram/test", dependencies=[Depends(verify_admin_access)])
 async def test_telegram(payload: Dict[str, Any] = None):
     if not engine:
         return JSONResponse(status_code=500, content={"error": "Engine not running"})

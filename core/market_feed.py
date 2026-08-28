@@ -55,12 +55,14 @@ class MarketFeed:
                 }
                 return self.cached_tickers[symbol]
         except Exception as e:
-            logger.warning(f"Error fetching ticker for {symbol}: {e}")
+            logger.warning(f"⚠️ [MARKET_FEED] Exchange fetch_ticker error for {symbol}: {e}")
 
         # Fallback to cached or synthetic estimate
         if symbol in self.cached_tickers:
             return self.cached_tickers[symbol]
-        return {'symbol': symbol, 'price': 100.0, 'bid': 99.95, 'ask': 100.05, 'volume_24h': 100000, 'change_24h_pct': 0.0, 'timestamp': int(time.time() * 1000)}
+
+        logger.warning(f"🚨 [DATA TRANSPARENCY WARNING] Generating synthetic fallback ticker for {symbol} because exchange API and cache are unavailable.")
+        return {'symbol': symbol, 'price': 100.0, 'bid': 99.95, 'ask': 100.05, 'volume_24h': 100000, 'change_24h_pct': 0.0, 'timestamp': int(time.time() * 1000), 'is_synthetic': True}
 
     def fetch_ohlcv_dataframe(self, symbol: str, timeframe: Optional[str] = None) -> pd.DataFrame:
         """Fetches OHLCV and calculates indicators into a Pandas DataFrame."""
@@ -77,13 +79,22 @@ class MarketFeed:
                 self.cached_candles[symbol] = df
                 return df
         except Exception as e:
-            logger.warning(f"Error fetching OHLCV for {symbol} ({tf}): {e}")
+            logger.warning(f"⚠️ [MARKET_FEED] Exchange fetch_ohlcv error for {symbol} ({tf}): {e}")
 
         if symbol in self.cached_candles:
             return self.cached_candles[symbol]
 
         # Generate synthetic fallback DF if completely offline
+        logger.warning(f"🚨 [DATA TRANSPARENCY WARNING] Falling back to synthetic model OHLCV generation for {symbol} because exchange connection is offline.")
         return self._generate_fallback_df(symbol)
+
+    async def async_fetch_ticker(self, symbol: str) -> Dict[str, Any]:
+        """Non-blocking async wrapper around fetch_ticker."""
+        return await asyncio.to_thread(self.fetch_ticker, symbol)
+
+    async def async_fetch_ohlcv_dataframe(self, symbol: str, timeframe: Optional[str] = None) -> pd.DataFrame:
+        """Non-blocking async wrapper around fetch_ohlcv_dataframe."""
+        return await asyncio.to_thread(self.fetch_ohlcv_dataframe, symbol, timeframe)
 
     @staticmethod
     def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:

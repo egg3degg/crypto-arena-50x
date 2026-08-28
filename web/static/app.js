@@ -57,25 +57,50 @@ function getBotCategory(botId) {
   return 'OTHER';
 }
 
+const ARENA_API_KEY = 'arena-secret-key-2026';
+let wsInstance = null;
+
+async function apiPost(url, body = {}) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': ARENA_API_KEY
+    },
+    body: JSON.stringify(body)
+  });
+  return res.json();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initWebSocket();
   initAnalyticsCharts();
   fetchInitialData();
   fetchPolymarketData();
   fetchSentimentData();
-  setInterval(fetchInitialData, 6000);
-  setInterval(fetchPolymarketData, 20000);
-  setInterval(fetchSentimentData, 30000);
+
+  // Low-frequency safety fallback polling only if WebSocket is disconnected
+  setInterval(() => {
+    if (!wsInstance || wsInstance.readyState !== WebSocket.OPEN) {
+      fetchInitialData();
+    }
+  }, 25000);
+  setInterval(fetchPolymarketData, 30000);
+  setInterval(fetchSentimentData, 45000);
 });
 
-function switchTab(tabId) {
+function switchTab(tabId, el) {
   currentTab = tabId;
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
 
-  if (event && event.target) {
-    event.target.classList.add('active');
+  if (el) {
+    el.classList.add('active');
+  } else {
+    const btn = document.querySelector(`.tab-btn[onclick*="${tabId}"]`);
+    if (btn) btn.classList.add('active');
   }
+
   const targetPane = document.getElementById(`tab-${tabId}`);
   if (targetPane) targetPane.classList.add('active');
 
@@ -84,7 +109,8 @@ function switchTab(tabId) {
   } else if (tabId === 'analytics') {
     updateAnalyticsCharts();
   } else if (tabId === 'candlestick') {
-    loadCandlestickChart(document.getElementById('candlestick-pair-select').value);
+    const pairSelect = document.getElementById('candlestick-pair-select');
+    if (pairSelect) loadCandlestickChart(pairSelect.value);
   } else if (tabId === 'polymarket') {
     fetchPolymarketData();
   }
@@ -94,22 +120,26 @@ function switchTab(tabId) {
 function initWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${protocol}//${window.location.host}/ws`;
-  const ws = new WebSocket(wsUrl);
+  wsInstance = new WebSocket(wsUrl);
 
-  ws.onmessage = (event) => {
+  wsInstance.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
       if (data.type === 'TELEMETRY_UPDATE') {
         renderLeaderboard(data.leaderboard);
         renderTickers(data.tickers);
         renderResearch(data.market_overview);
+        if (currentTab === 'trajectory') {
+          // Trigger smooth in-place trajectory update
+          renderTrajectoryChart();
+        }
       }
     } catch (e) {
       console.error("WS Parse Error", e);
     }
   };
 
-  ws.onclose = () => {
+  wsInstance.onclose = () => {
     setTimeout(initWebSocket, 4000);
   };
 }
@@ -161,7 +191,7 @@ async function fetchSentimentData() {
 }
 
 // -------------------------------------------------------------
-// TAB 2: BALANCE TRAJECTORY WITH ZOOM, TIMEFRAMES & TOOLS
+// TAB 2: BALANCE TRAJECTORY WITH IN-PLACE ZOOM & PAN PRESERVATION
 // -------------------------------------------------------------
 async function renderTrajectoryChart() {
   try {
@@ -177,10 +207,6 @@ async function renderTrajectoryChart() {
 function renderTrajectoryFromCache() {
   const ctx = document.getElementById('trajectoryChartCanvas');
   if (!ctx || !rawTrajectoryData) return;
-
-  if (trajectoryChartInstance) {
-    trajectoryChartInstance.destroy();
-  }
 
   // 1. Gather & Filter Timestamps by Timeframe
   let allTimestamps = [];
@@ -326,7 +352,14 @@ function renderTrajectoryFromCache() {
   // 4. Render Interactive Legend Chips
   renderLegendChips(botEntries);
 
-  // 5. Initialize Chart.js with Zoom Plugin
+  // 5. Update in-place or Initialize Chart.js with Zoom Plugin
+  if (trajectoryChartInstance) {
+    trajectoryChartInstance.data.labels = timeLabels;
+    trajectoryChartInstance.data.datasets = datasets;
+    trajectoryChartInstance.update('none'); // In-place update preserving user zoom level & pan position!
+    return;
+  }
+
   trajectoryChartInstance = new Chart(ctx, {
     type: 'line',
     data: {
@@ -643,9 +676,20 @@ function renderFilteredLeaderboard() {
       const isActive = bot.is_active !== false;
       const totalTrades = bot.winning_trades + bot.losing_trades;
 
-      // Category badge
+      // Category and Data Authenticity badge
       const cat = getBotCategory(bot.bot_id);
-      const catBadge = cat === 'CRYPTO' ? '🪙 Crypto' : (cat === 'POLYMARKET' ? '🔮 Polymarket' : (cat === 'INDIAN_STOCKS' ? '🇮🇳 NSE Equities' : '🥇 Commodities'));
+      let catBadge = '';
+      if (cat === 'CRYPTO') {
+        catBadge = '<span style="font-size:10px; background:rgba(6,182,212,0.15); border:1px solid rgba(6,182,212,0.35); padding:2px 6px; border-radius:4px; color:var(--accent-cyan);">🪙 Crypto (Live Binance Feed)</span>';
+      } else if (cat === 'POLYMARKET') {
+        catBadge = '<span style="font-size:10px; background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.35); padding:2px 6px; border-radius:4px; color:var(--accent-purple);">🔮 Polymarket (Live Gamma + Whale Model)</span>';
+      } else if (cat === 'INDIAN_STOCKS') {
+        catBadge = '<span style="font-size:10px; background:rgba(245,158,11,0.18); border:1px solid rgba(245,158,11,0.45); padding:2px 6px; border-radius:4px; color:var(--accent-yellow);" title="Paper model using simulated price motion">⚠️ 🇮🇳 NSE (Simulated Model)</span>';
+      } else if (cat === 'COMMODITIES') {
+        catBadge = '<span style="font-size:10px; background:rgba(245,158,11,0.18); border:1px solid rgba(245,158,11,0.45); padding:2px 6px; border-radius:4px; color:var(--accent-yellow);" title="Paper model using synthetic spread">⚠️ 🥇 Gold/Silver (Synthetic Model)</span>';
+      } else {
+        catBadge = '<span style="font-size:10px; background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px; color:var(--text-muted);">Generic</span>';
+      }
 
       html += `
         <div class="bot-card ${isActive ? '' : 'paused'}" id="card-${bot.bot_id}">
@@ -653,8 +697,8 @@ function renderFilteredLeaderboard() {
             <div class="bot-status-pill ${isActive ? 'status-active' : 'status-paused'}" onclick="toggleBotStatus('${bot.bot_id}', ${!isActive})">
               ${isActive ? '● Active' : '⏸ Paused'}
             </div>
-            <div style="display:flex; gap:6px; align-items:center;">
-              <span style="font-size:10px; background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px; color:var(--accent-cyan);">${catBadge}</span>
+            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+              ${catBadge}
               <div class="rank-badge ${rankClass}">${rankLabel}</div>
             </div>
           </div>
@@ -859,11 +903,7 @@ async function handleRunBacktest(e) {
 // Bot Control Actions
 async function toggleBotStatus(botId, newActiveState) {
   try {
-    await fetch(`/api/bots/${botId}/toggle`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_active: newActiveState })
-    }).then(r => r.json());
+    await apiPost(`/api/bots/${botId}/toggle`, { is_active: newActiveState });
     fetchInitialData();
   } catch (e) {
     alert("Error toggling bot: " + e);
@@ -873,11 +913,7 @@ async function toggleBotStatus(botId, newActiveState) {
 async function toggleAllBots(isActive) {
   if (!activeBotsCache.length) return;
   for (const b of activeBotsCache) {
-    await fetch(`/api/bots/${b.bot_id}/toggle`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_active: isActive })
-    });
+    await apiPost(`/api/bots/${b.bot_id}/toggle`, { is_active: isActive });
   }
   fetchInitialData();
 }
@@ -885,7 +921,7 @@ async function toggleAllBots(isActive) {
 async function liquidateBot(botId) {
   if (!confirm(`Are you sure you want to emergency close all open positions for bot '${botId}' at market price?`)) return;
   try {
-    const res = await fetch(`/api/bots/${botId}/liquidate`, { method: 'POST' }).then(r => r.json());
+    const res = await apiPost(`/api/bots/${botId}/liquidate`);
     alert(`Successfully closed ${res.closed_trades_count} open positions.`);
     fetchInitialData();
   } catch (e) {
@@ -914,12 +950,7 @@ async function handleCreateBotSubmit(e) {
   };
 
   try {
-    const res = await fetch('/api/bots/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).then(r => r.json());
-
+    const res = await apiPost('/api/bots/create', payload);
     if (res.success) {
       closeModal('create-bot-modal');
       alert(`Bot '${payload.name}' deployed successfully into the arena!`);
@@ -959,12 +990,7 @@ async function handleEditParamsSubmit(e) {
   };
 
   try {
-    const res = await fetch(`/api/bots/${botId}/params`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).then(r => r.json());
-
+    const res = await apiPost(`/api/bots/${botId}/params`, payload);
     if (res.success) {
       closeModal('edit-params-modal');
       alert(`Parameters for '${botId}' updated live!`);
@@ -992,12 +1018,7 @@ async function handleManualTradeSubmit(e) {
   };
 
   try {
-    const res = await fetch(`/api/bots/${botId}/manual-order`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).then(r => r.json());
-
+    const res = await apiPost(`/api/bots/${botId}/manual-order`, payload);
     closeModal('manual-trade-modal');
     if (res.success) {
       alert(`Manual ${payload.side} order executed for ${payload.symbol}!`);
@@ -1031,11 +1052,7 @@ async function handleAddPair() {
   const input = document.getElementById('add-pair-input');
   const val = input.value.trim().toUpperCase();
   if (!val) return;
-  const res = await fetch('/api/pairs/add', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ symbol: val })
-  }).then(r => r.json());
+  const res = await apiPost('/api/pairs/add', { symbol: val });
   if (res.success) {
     activePairsCache = res.pairs;
     renderPairsList();
@@ -1044,11 +1061,7 @@ async function handleAddPair() {
 }
 
 async function handleRemovePair(pair) {
-  const res = await fetch('/api/pairs/remove', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ symbol: pair })
-  }).then(r => r.json());
+  const res = await apiPost('/api/pairs/remove', { symbol: pair });
   if (res.success) {
     activePairsCache = res.pairs;
     renderPairsList();
@@ -1065,12 +1078,7 @@ async function handleSaveTelegram() {
     alert("Please enter both Bot Token and Chat ID.");
     return;
   }
-  const res = await fetch('/api/telegram/test', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token, chat_id })
-  }).then(r => r.json());
-
+  const res = await apiPost('/api/telegram/test', { token, chat_id });
   if (res.success) {
     closeModal('telegram-modal');
     alert("✔ " + res.message);
