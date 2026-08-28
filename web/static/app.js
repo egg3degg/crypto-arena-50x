@@ -1,4 +1,4 @@
-// CryptoArena Web Master Control, Polymarket & Analytics Script
+// State Management
 let chartInstance = null;
 let candleChartInstance = null;
 let trajectoryChartInstance = null;
@@ -12,9 +12,50 @@ let activePositionsCache = [];
 let activeTradesCache = [];
 let activePairsCache = [];
 
-const BASE_BOT_COLORS = [
-  '#06b6d4', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6', '#14b8a6', '#f97316', '#a855f7', '#fbbf24'
-];
+// Leaderboard Filtering & Sorting State
+let currentLeaderboardCategory = 'ALL';
+let currentLeaderboardSort = 'most_balance';
+let currentLeaderboardStatus = 'ALL';
+let currentLeaderboardSearch = '';
+
+// Trajectory Chart Tools State
+let trajectoryTimeframe = 'ALL';      // '1H', '4H', '12H', '24H', 'ALL'
+let trajectoryPreset = 'ALL';         // 'ALL', 'TOP3', 'BOTTOM3', 'CRYPTO', 'POLYMARKET', 'INDIAN_COMM'
+let trajectoryDotVisibility = 'ALL';  // 'ALL', 'WINS', 'LOSSES', 'NONE'
+let trajectoryScaleMode = 'DOLLAR';   // 'DOLLAR', 'PERCENT'
+let hiddenBotDatasetIds = new Set();  // Set of bot_ids manually toggled off
+let rawTrajectoryData = null;         // Cached trajectory response
+
+const BASE_BOT_COLORS = {
+  'bot_1_alphatrend': '#06b6d4',       // Cyan
+  'bot_2_meanrevert': '#ec4899',       // Pink
+  'bot_3_breakouthunter': '#10b981',   // Emerald
+  'bot_4_adaptivegrid': '#8b5cf6',     // Purple
+  'bot_5_smartmoney': '#f59e0b',       // Amber
+  'bot_6_polypredictor': '#14b8a6',   // Teal
+  'bot_7_bharatbreakout': '#a855f7',  // Violet
+  'bot_8_desimeanrevert': '#f97316',  // Orange
+  'bot_9_hypergoldsilver': '#fbbf24', // Gold
+  'bot_10_polywhalecopy': '#3b82f6',  // Blue
+  'bot_11_polyleaderwhale': '#38bdf8',// Sky Blue
+  'bot_12_polymicrobot': '#6366f1'    // Indigo
+};
+
+function getBotCategory(botId) {
+  if (['bot_1_alphatrend', 'bot_2_meanrevert', 'bot_3_breakouthunter', 'bot_4_adaptivegrid', 'bot_5_smartmoney'].includes(botId)) {
+    return 'CRYPTO';
+  }
+  if (['bot_6_polypredictor', 'bot_10_polywhalecopy', 'bot_11_polyleaderwhale', 'bot_12_polymicrobot'].includes(botId)) {
+    return 'POLYMARKET';
+  }
+  if (['bot_7_bharatbreakout', 'bot_8_desimeanrevert'].includes(botId)) {
+    return 'INDIAN_STOCKS';
+  }
+  if (botId === 'bot_9_hypergoldsilver') {
+    return 'COMMODITIES';
+  }
+  return 'OTHER';
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   initWebSocket();
@@ -120,138 +161,323 @@ async function fetchSentimentData() {
 }
 
 // -------------------------------------------------------------
-// TAB 2: BALANCE TRAJECTORY WITH GREEN & RED TRADE DOTS
+// TAB 2: BALANCE TRAJECTORY WITH ZOOM, TIMEFRAMES & TOOLS
 // -------------------------------------------------------------
 async function renderTrajectoryChart() {
-  const ctx = document.getElementById('trajectoryChartCanvas');
-  if (!ctx) return;
-
-  const selectEl = document.getElementById('trajectory-bot-select');
-  const selectedBot = selectEl ? selectEl.value : 'ALL';
-
   try {
     const trajectories = await fetch('/api/equity-trajectory').then(r => r.json());
     if (!trajectories || Object.keys(trajectories).length === 0) return;
+    rawTrajectoryData = trajectories;
+    renderTrajectoryFromCache();
+  } catch (e) {
+    console.error("Trajectory chart load error", e);
+  }
+}
 
-    if (trajectoryChartInstance) {
-      trajectoryChartInstance.destroy();
-    }
+function renderTrajectoryFromCache() {
+  const ctx = document.getElementById('trajectoryChartCanvas');
+  if (!ctx || !rawTrajectoryData) return;
 
-    let datasets = [];
-    let allTimestamps = [];
+  if (trajectoryChartInstance) {
+    trajectoryChartInstance.destroy();
+  }
 
-    // Collect all timestamps
-    Object.values(trajectories).forEach(t => {
-      t.snapshots.forEach(s => allTimestamps.push(s.timestamp));
+  // 1. Gather & Filter Timestamps by Timeframe
+  let allTimestamps = [];
+  Object.values(rawTrajectoryData).forEach(t => {
+    t.snapshots.forEach(s => allTimestamps.push(s.timestamp));
+  });
+  allTimestamps = [...new Set(allTimestamps)].sort();
+  if (!allTimestamps.length) return;
+
+  const latestTime = new Date(allTimestamps[allTimestamps.length - 1]).getTime();
+  let filteredTimestamps = allTimestamps;
+
+  if (trajectoryTimeframe !== 'ALL') {
+    let cutoffMs = 3600 * 1000;
+    if (trajectoryTimeframe === '1H') cutoffMs = 3600 * 1000;
+    else if (trajectoryTimeframe === '4H') cutoffMs = 4 * 3600 * 1000;
+    else if (trajectoryTimeframe === '12H') cutoffMs = 12 * 3600 * 1000;
+    else if (trajectoryTimeframe === '24H') cutoffMs = 24 * 3600 * 1000;
+
+    filteredTimestamps = allTimestamps.filter(ts => {
+      return (latestTime - new Date(ts).getTime()) <= cutoffMs;
     });
-    allTimestamps = [...new Set(allTimestamps)].sort();
-    const timeLabels = allTimestamps.map(ts => new Date(ts).toLocaleTimeString());
+    if (filteredTimestamps.length === 0) filteredTimestamps = allTimestamps;
+  }
 
-    let botEntries = Object.entries(trajectories);
-    if (selectedBot !== 'ALL') {
-      botEntries = botEntries.filter(([id]) => id === selectedBot);
-    }
+  const timeLabels = filteredTimestamps.map(ts => {
+    const d = new Date(ts);
+    return `${d.toLocaleDateString([], {month:'short', day:'numeric'})} ${d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+  });
 
-    botEntries.forEach(([botId, botData], idx) => {
-      const color = BASE_BOT_COLORS[idx % BASE_BOT_COLORS.length];
-      
-      // Map equity values aligned with timestamps
-      const snapMap = {};
-      botData.snapshots.forEach(s => { snapMap[s.timestamp] = s.total_equity; });
+  // 2. Select & Rank Bots for Cohort Presets
+  let botEntries = Object.entries(rawTrajectoryData);
+  
+  // Sort entries by latest equity for ranking
+  const sortedByEquity = [...botEntries].sort((a, b) => {
+    const aLast = a[1].snapshots.length ? a[1].snapshots[a[1].snapshots.length - 1].total_equity : 50;
+    const bLast = b[1].snapshots.length ? b[1].snapshots[b[1].snapshots.length - 1].total_equity : 50;
+    return bLast - aLast;
+  });
 
-      // Forward fill balance values
-      let lastVal = 50.0;
-      const dataPoints = allTimestamps.map(ts => {
-        if (snapMap[ts] !== undefined) lastVal = snapMap[ts];
-        return lastVal;
+  const selectEl = document.getElementById('trajectory-bot-select');
+  const selectedSingleBot = selectEl ? selectEl.value : 'ALL';
+
+  if (selectedSingleBot !== 'ALL') {
+    botEntries = botEntries.filter(([id]) => id === selectedSingleBot);
+  } else if (trajectoryPreset === 'TOP3') {
+    botEntries = sortedByEquity.slice(0, 3);
+  } else if (trajectoryPreset === 'BOTTOM3') {
+    botEntries = sortedByEquity.slice(-3);
+  } else if (trajectoryPreset === 'CRYPTO') {
+    botEntries = botEntries.filter(([id]) => getBotCategory(id) === 'CRYPTO');
+  } else if (trajectoryPreset === 'POLYMARKET') {
+    botEntries = botEntries.filter(([id]) => getBotCategory(id) === 'POLYMARKET');
+  } else if (trajectoryPreset === 'INDIAN_COMM') {
+    botEntries = botEntries.filter(([id]) => ['INDIAN_STOCKS', 'COMMODITIES'].includes(getBotCategory(id)));
+  }
+
+  // 3. Build Datasets
+  let datasets = [];
+  botEntries.forEach(([botId, botData]) => {
+    const isHidden = hiddenBotDatasetIds.has(botId);
+    const color = BASE_BOT_COLORS[botId] || '#06b6d4';
+    
+    // Map snapshot equity
+    const snapMap = {};
+    botData.snapshots.forEach(s => { snapMap[s.timestamp] = s.total_equity; });
+
+    let lastVal = 50.0;
+    const dataPoints = filteredTimestamps.map(ts => {
+      if (snapMap[ts] !== undefined) lastVal = snapMap[ts];
+      if (trajectoryScaleMode === 'PERCENT') {
+        return ((lastVal - 50.0) / 50.0) * 100.0; // ROI %
+      }
+      return lastVal; // Absolute $
+    });
+
+    // Trade Dot Overlays
+    const pointBackgroundColors = [];
+    const pointBorderColors = [];
+    const pointRadiuses = [];
+    const pointTradeData = [];
+
+    filteredTimestamps.forEach((ts) => {
+      const matchingTrades = botData.trade_markers.filter(m => {
+        return Math.abs(new Date(m.timestamp) - new Date(ts)) < 25000;
       });
 
-      // Trade Markers overlay (Green / Red Dots)
-      const pointBackgroundColors = [];
-      const pointBorderColors = [];
-      const pointRadiuses = [];
-      const pointTradeData = [];
+      let showDot = false;
+      let tradeMatch = null;
 
-      allTimestamps.forEach((ts, tIdx) => {
-        // Check if trade occurred at this timestamp
-        const matchingTrades = botData.trade_markers.filter(m => {
-          return Math.abs(new Date(m.timestamp) - new Date(ts)) < 25000;
-        });
-
-        if (matchingTrades.length > 0) {
-          const t = matchingTrades[0];
-          pointRadiuses.push(8);
-          pointBackgroundColors.push(t.dot_color); // Green or Red
-          pointBorderColors.push('#ffffff');
-          pointTradeData.push(t);
-        } else {
-          pointRadiuses.push(1);
-          pointBackgroundColors.push(color);
-          pointBorderColors.push(color);
-          pointTradeData.push(null);
+      if (matchingTrades.length > 0 && trajectoryDotVisibility !== 'NONE') {
+        const t = matchingTrades[0];
+        if (trajectoryDotVisibility === 'ALL') {
+          showDot = true;
+        } else if (trajectoryDotVisibility === 'WINS' && (t.side === 'BUY' || t.realized_pnl >= 0)) {
+          showDot = true;
+        } else if (trajectoryDotVisibility === 'LOSSES' && t.side === 'SELL' && t.realized_pnl < 0) {
+          showDot = true;
         }
-      });
+        tradeMatch = t;
+      }
 
-      datasets.push({
-        label: botData.name,
-        data: dataPoints,
-        borderColor: color,
-        backgroundColor: color + '22',
-        borderWidth: 2.5,
-        fill: selectedBot !== 'ALL',
-        tension: 0.25,
-        pointRadius: pointRadiuses,
-        pointBackgroundColor: pointBackgroundColors,
-        pointBorderColor: pointBorderColors,
-        pointHoverRadius: 10,
-        tradeDetails: pointTradeData
-      });
+      if (showDot && tradeMatch) {
+        pointRadiuses.push(7);
+        pointBackgroundColors.push(tradeMatch.dot_color);
+        pointBorderColors.push('#ffffff');
+        pointTradeData.push(tradeMatch);
+      } else {
+        pointRadiuses.push(1);
+        pointBackgroundColors.push(color);
+        pointBorderColors.push(color);
+        pointTradeData.push(null);
+      }
     });
 
-    trajectoryChartInstance = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: timeLabels,
-        datasets: datasets
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'nearest', intersect: true },
-        scales: {
-          x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
-          y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', callback: v => `$${v.toFixed(2)}` } }
-        },
-        plugins: {
-          legend: { labels: { color: '#f8fafc', font: { family: 'JetBrains Mono', size: 11 } } },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                const dataset = context.dataset;
-                const idx = context.dataIndex;
-                const val = context.parsed.y;
-                const trade = dataset.tradeDetails ? dataset.tradeDetails[idx] : null;
+    datasets.push({
+      botId: botId,
+      label: botData.name,
+      data: dataPoints,
+      borderColor: color,
+      backgroundColor: color + '1a',
+      borderWidth: 2.2,
+      hidden: isHidden,
+      fill: botEntries.length === 1,
+      tension: 0.2,
+      pointRadius: pointRadiuses,
+      pointBackgroundColor: pointBackgroundColors,
+      pointBorderColor: pointBorderColors,
+      pointHoverRadius: 9,
+      tradeDetails: pointTradeData
+    });
+  });
 
-                if (trade) {
-                  const sideEmoji = trade.side === 'BUY' ? '🟢 BUY' : (trade.realized_pnl >= 0 ? '🟢 WIN EXIT' : '🔴 LOSS EXIT');
-                  const pnlStr = trade.side === 'SELL' ? ` | PnL: ${trade.realized_pnl >= 0 ? '+' : ''}$${trade.realized_pnl.toFixed(2)}` : '';
-                  return [
-                    `📊 ${dataset.label}: Balance $${val.toFixed(2)}`,
-                    `⚡ ${sideEmoji} ${trade.symbol} @ $${trade.price.toFixed(2)}${pnlStr}`,
-                    `📝 ${trade.reason}`
-                  ];
-                }
-                return `📊 ${dataset.label}: $${val.toFixed(2)}`;
+  // 4. Render Interactive Legend Chips
+  renderLegendChips(botEntries);
+
+  // 5. Initialize Chart.js with Zoom Plugin
+  trajectoryChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: timeLabels,
+      datasets: datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'nearest', intersect: true },
+      scales: {
+        x: {
+          grid: { color: '#1e293b' },
+          ticks: { color: '#94a3b8', font: { family: 'JetBrains Mono', size: 10 }, maxRotation: 0 }
+        },
+        y: {
+          grid: { color: '#1e293b' },
+          ticks: {
+            color: '#94a3b8',
+            font: { family: 'JetBrains Mono', size: 11 },
+            callback: v => trajectoryScaleMode === 'PERCENT' ? `${v >= 0 ? '+' : ''}${v.toFixed(2)}%` : `$${v.toFixed(2)}`
+          }
+        }
+      },
+      plugins: {
+        legend: { display: false }, // We use custom chips for better multi-touch & click control
+        zoom: {
+          pan: {
+            enabled: true,
+            mode: 'x'
+          },
+          zoom: {
+            wheel: { enabled: true, speed: 0.1 },
+            pinch: { enabled: true },
+            mode: 'x'
+          }
+        },
+        tooltip: {
+          backgroundColor: '#0f172a',
+          titleColor: '#38bdf8',
+          bodyColor: '#f8fafc',
+          borderColor: '#1e293b',
+          borderWidth: 1,
+          padding: 12,
+          callbacks: {
+            label: function(context) {
+              const dataset = context.dataset;
+              const idx = context.dataIndex;
+              const val = context.parsed.y;
+              const trade = dataset.tradeDetails ? dataset.tradeDetails[idx] : null;
+
+              const valFormatted = trajectoryScaleMode === 'PERCENT' ? `${val >= 0 ? '+' : ''}${val.toFixed(2)}% ROI` : `$${val.toFixed(2)}`;
+
+              if (trade) {
+                const sideEmoji = trade.side === 'BUY' ? '🟢 BUY ENTRY' : (trade.realized_pnl >= 0 ? '🟢 WIN EXIT' : '🔴 LOSS EXIT');
+                const pnlStr = trade.side === 'SELL' ? ` | PnL: ${trade.realized_pnl >= 0 ? '+' : ''}$${trade.realized_pnl.toFixed(2)}` : '';
+                return [
+                  `📊 ${dataset.label}: ${valFormatted}`,
+                  `⚡ ${sideEmoji} ${trade.symbol} @ $${trade.price.toFixed(2)}${pnlStr}`,
+                  `📝 ${trade.reason}`
+                ];
               }
+              return `📊 ${dataset.label}: ${valFormatted}`;
             }
           }
         }
       }
-    });
+    }
+  });
+}
 
-  } catch (e) {
-    console.error("Trajectory chart load error", e);
+// Render Interactive Bot Toggle Chips
+function renderLegendChips(botEntries) {
+  const container = document.getElementById('interactive-legend-chips');
+  if (!container) return;
+
+  let html = '';
+  botEntries.forEach(([botId, botData]) => {
+    const isHidden = hiddenBotDatasetIds.has(botId);
+    const color = BASE_BOT_COLORS[botId] || '#06b6d4';
+    html += `
+      <div class="legend-chip ${isHidden ? 'hidden' : ''}" onclick="toggleBotDatasetVisibility('${botId}')">
+        <span class="chip-dot" style="background-color: ${color};"></span>
+        <span>${botData.name}</span>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
+}
+
+function toggleBotDatasetVisibility(botId) {
+  if (hiddenBotDatasetIds.has(botId)) {
+    hiddenBotDatasetIds.delete(botId);
+  } else {
+    hiddenBotDatasetIds.add(botId);
   }
+  renderTrajectoryFromCache();
+}
+
+// Chart Controls Toolbar Handlers
+function setTimeframe(tf) {
+  trajectoryTimeframe = tf;
+  document.querySelectorAll('#trajectory-timeframe-pills .chart-pill-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.textContent.trim().startsWith(tf));
+  });
+  renderTrajectoryFromCache();
+}
+
+function setTrajectoryPreset(preset) {
+  trajectoryPreset = preset;
+  const selectEl = document.getElementById('trajectory-bot-select');
+  if (selectEl) selectEl.value = 'ALL';
+
+  document.querySelectorAll('#trajectory-preset-pills .chart-pill-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('onclick').includes(preset));
+  });
+  renderTrajectoryFromCache();
+}
+
+function setDotVisibility(mode) {
+  trajectoryDotVisibility = mode;
+  document.querySelectorAll('#trajectory-dots-pills .chart-pill-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('onclick').includes(mode));
+  });
+  renderTrajectoryFromCache();
+}
+
+function setScaleMode(mode) {
+  trajectoryScaleMode = mode;
+  document.querySelectorAll('#trajectory-scale-pills .chart-pill-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('onclick').includes(mode));
+  });
+  renderTrajectoryFromCache();
+}
+
+function handleSingleBotSelect() {
+  const selectEl = document.getElementById('trajectory-bot-select');
+  const val = selectEl ? selectEl.value : 'ALL';
+  if (val !== 'ALL') {
+    trajectoryPreset = 'CUSTOM';
+    document.querySelectorAll('#trajectory-preset-pills .chart-pill-btn').forEach(btn => btn.classList.remove('active'));
+  } else {
+    trajectoryPreset = 'ALL';
+    document.querySelectorAll('#trajectory-preset-pills .chart-pill-btn').forEach(btn => {
+      if (btn.textContent.includes('All')) btn.classList.add('active');
+    });
+  }
+  renderTrajectoryFromCache();
+}
+
+function handleZoomIn() {
+  if (trajectoryChartInstance) trajectoryChartInstance.zoom(1.25);
+}
+
+function handleZoomOut() {
+  if (trajectoryChartInstance) trajectoryChartInstance.zoom(0.8);
+}
+
+function handleResetZoom() {
+  if (trajectoryChartInstance) trajectoryChartInstance.resetZoom();
 }
 
 // Render Polymarket Prediction Events
@@ -303,68 +529,163 @@ function renderSentiment(data) {
   }
 }
 
-// Render Leaderboard & Bot Controls
+// Render Leaderboard & Bot Controls with Dynamic Sorting & Category Filtering
 function renderLeaderboard(bots) {
   if (!bots || !bots.length) return;
   activeBotsCache = bots;
+  renderFilteredLeaderboard();
+}
+
+function applyLeaderboardFilters() {
+  const sortSelect = document.getElementById('leaderboard-sort-select');
+  const statusSelect = document.getElementById('leaderboard-status-select');
+  const searchInput = document.getElementById('leaderboard-search-input');
+
+  if (sortSelect) currentLeaderboardSort = sortSelect.value;
+  if (statusSelect) currentLeaderboardStatus = statusSelect.value;
+  if (searchInput) currentLeaderboardSearch = searchInput.value.toLowerCase().trim();
+
+  renderFilteredLeaderboard();
+}
+
+function setLeaderboardCategory(cat) {
+  currentLeaderboardCategory = cat;
+  document.querySelectorAll('#category-filter-pills .pill-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('onclick').includes(cat));
+  });
+  renderFilteredLeaderboard();
+}
+
+function renderFilteredLeaderboard() {
+  if (!activeBotsCache || !activeBotsCache.length) return;
   const container = document.getElementById('leaderboard-container');
-  let html = '';
+  if (!container) return;
+
+  let bots = [...activeBotsCache];
   let totalArenaPnl = 0;
   let totalCap = 0;
 
-  bots.forEach((bot, index) => {
-    const rank = index + 1;
-    const rankClass = rank === 1 ? 'rank-1' : (rank === 2 ? 'rank-2' : (rank === 3 ? 'rank-3' : 'rank-other'));
-    const rankLabel = rank === 1 ? '🥇 #1 Champion' : (rank === 2 ? '🥈 #2' : (rank === 3 ? '🥉 #3' : `#${rank}`));
-    const pnlClass = bot.total_pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
-    const pnlSign = bot.total_pnl >= 0 ? '+' : '';
-    const isActive = bot.is_active !== false;
-    totalArenaPnl += bot.total_pnl;
-    totalCap += bot.current_equity;
-
-    html += `
-      <div class="bot-card ${isActive ? '' : 'paused'}" id="card-${bot.bot_id}">
-        <div class="card-top-row">
-          <div class="bot-status-pill ${isActive ? 'status-active' : 'status-paused'}" onclick="toggleBotStatus('${bot.bot_id}', ${!isActive})">
-            ${isActive ? '● Active' : '⏸ Paused'}
-          </div>
-          <div class="rank-badge ${rankClass}">${rankLabel}</div>
-        </div>
-
-        <div class="bot-name">${bot.name}</div>
-        <div class="bot-strat-tag">${bot.strategy_name}</div>
-
-        <div class="bot-stats-grid">
-          <div class="stat-item">
-            <span class="k">Total Equity</span>
-            <span class="v">$${bot.current_equity.toFixed(2)}</span>
-          </div>
-          <div class="stat-item">
-            <span class="k">PnL / ROI</span>
-            <span class="v ${pnlClass}">${pnlSign}$${bot.total_pnl.toFixed(2)} (${pnlSign}${bot.roi_pct.toFixed(2)}%)</span>
-          </div>
-          <div class="stat-item">
-            <span class="k">Win Rate</span>
-            <span class="v">${bot.win_rate.toFixed(1)}% <small style="color:var(--text-muted)">(${bot.winning_trades}W / ${bot.losing_trades}L)</small></span>
-          </div>
-          <div class="stat-item">
-            <span class="k">Max Drawdown</span>
-            <span class="v ${bot.max_drawdown > 3 ? 'pnl-neg' : ''}">${bot.max_drawdown.toFixed(2)}%</span>
-          </div>
-        </div>
-
-        <div style="font-size:11px; color:var(--accent-cyan); margin-bottom:12px;">
-          Active Trades: <strong>${bot.open_positions_count}</strong> | Free Cash: <strong>$${bot.available_balance.toFixed(2)}</strong>
-        </div>
-
-        <div class="card-control-toolbar">
-          <button class="btn-ctrl" onclick="openEditParamsModal('${bot.bot_id}')">⚙️ Params</button>
-          <button class="btn-ctrl" onclick="openManualTradeModal('${bot.bot_id}')">⚡ Order</button>
-          <button class="btn-ctrl btn-ctrl-danger" onclick="liquidateBot('${bot.bot_id}')">🛑 Liquidate</button>
-        </div>
-      </div>
-    `;
+  activeBotsCache.forEach(b => {
+    totalArenaPnl += b.total_pnl;
+    totalCap += b.current_equity;
   });
+
+  // 1. Market Category Filter
+  if (currentLeaderboardCategory !== 'ALL') {
+    bots = bots.filter(b => getBotCategory(b.bot_id) === currentLeaderboardCategory);
+  }
+
+  // 2. Status Filter
+  if (currentLeaderboardStatus === 'ACTIVE') {
+    bots = bots.filter(b => b.is_active !== false);
+  } else if (currentLeaderboardStatus === 'PAUSED') {
+    bots = bots.filter(b => b.is_active === false);
+  }
+
+  // 3. Search Filter
+  if (currentLeaderboardSearch) {
+    bots = bots.filter(b => 
+      b.name.toLowerCase().includes(currentLeaderboardSearch) ||
+      (b.strategy_name && b.strategy_name.toLowerCase().includes(currentLeaderboardSearch)) ||
+      b.bot_id.toLowerCase().includes(currentLeaderboardSearch)
+    );
+  }
+
+  // 4. Sorting
+  switch (currentLeaderboardSort) {
+    case 'most_balance':
+      bots.sort((a, b) => b.current_equity - a.current_equity);
+      break;
+    case 'least_balance':
+      bots.sort((a, b) => a.current_equity - b.current_equity);
+      break;
+    case 'most_trades':
+      bots.sort((a, b) => (b.winning_trades + b.losing_trades + (b.open_positions_count || 0)) - (a.winning_trades + a.losing_trades + (a.open_positions_count || 0)));
+      break;
+    case 'least_trades':
+      bots.sort((a, b) => (a.winning_trades + a.losing_trades + (a.open_positions_count || 0)) - (b.winning_trades + b.losing_trades + (b.open_positions_count || 0)));
+      break;
+    case 'highest_winrate':
+      bots.sort((a, b) => b.win_rate - a.win_rate);
+      break;
+    case 'highest_pnl':
+      bots.sort((a, b) => b.total_pnl - a.total_pnl);
+      break;
+    case 'lowest_pnl':
+      bots.sort((a, b) => a.total_pnl - b.total_pnl);
+      break;
+    case 'alphabetical':
+      bots.sort((a, b) => a.name.localeCompare(b.name));
+      break;
+    default:
+      bots.sort((a, b) => b.current_equity - a.current_equity);
+  }
+
+  let html = '';
+  if (bots.length === 0) {
+    html = `<div style="grid-column: 1/-1; text-align:center; padding:40px; color:var(--text-muted);">No bots matched your search or category filter.</div>`;
+  } else {
+    bots.forEach((bot, index) => {
+      const rank = index + 1;
+      const rankClass = rank === 1 ? 'rank-1' : (rank === 2 ? 'rank-2' : (rank === 3 ? 'rank-3' : 'rank-other'));
+      const rankLabel = rank === 1 ? '🥇 #1' : (rank === 2 ? '🥈 #2' : (rank === 3 ? '🥉 #3' : `#${rank}`));
+      const pnlClass = bot.total_pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
+      const pnlSign = bot.total_pnl >= 0 ? '+' : '';
+      const isActive = bot.is_active !== false;
+      const totalTrades = bot.winning_trades + bot.losing_trades;
+
+      // Category badge
+      const cat = getBotCategory(bot.bot_id);
+      const catBadge = cat === 'CRYPTO' ? '🪙 Crypto' : (cat === 'POLYMARKET' ? '🔮 Polymarket' : (cat === 'INDIAN_STOCKS' ? '🇮🇳 NSE Equities' : '🥇 Commodities'));
+
+      html += `
+        <div class="bot-card ${isActive ? '' : 'paused'}" id="card-${bot.bot_id}">
+          <div class="card-top-row">
+            <div class="bot-status-pill ${isActive ? 'status-active' : 'status-paused'}" onclick="toggleBotStatus('${bot.bot_id}', ${!isActive})">
+              ${isActive ? '● Active' : '⏸ Paused'}
+            </div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <span style="font-size:10px; background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px; color:var(--accent-cyan);">${catBadge}</span>
+              <div class="rank-badge ${rankClass}">${rankLabel}</div>
+            </div>
+          </div>
+
+          <div class="bot-name">${bot.name}</div>
+          <div class="bot-strat-tag">${bot.strategy_name}</div>
+
+          <div class="bot-stats-grid">
+            <div class="stat-item">
+              <span class="k">Total Equity</span>
+              <span class="v" style="color:var(--text-main); font-weight:800;">$${bot.current_equity.toFixed(2)}</span>
+            </div>
+            <div class="stat-item">
+              <span class="k">PnL / ROI</span>
+              <span class="v ${pnlClass}">${pnlSign}$${bot.total_pnl.toFixed(2)} (${pnlSign}${bot.roi_pct.toFixed(2)}%)</span>
+            </div>
+            <div class="stat-item">
+              <span class="k">Win Rate</span>
+              <span class="v">${bot.win_rate.toFixed(1)}% <small style="color:var(--text-muted)">(${bot.winning_trades}W / ${bot.losing_trades}L)</small></span>
+            </div>
+            <div class="stat-item">
+              <span class="k">Total Trades</span>
+              <span class="v">${totalTrades} Closed <small style="color:var(--accent-cyan)">(${bot.open_positions_count} Open)</small></span>
+            </div>
+          </div>
+
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:12px; display:flex; justify-content:space-between;">
+            <span>Free Cash: <strong style="color:var(--accent-green);">$${bot.available_balance.toFixed(2)}</strong></span>
+            <span>Max DD: <strong style="color:${bot.max_drawdown > 3 ? 'var(--accent-red)' : 'var(--text-muted)'};">${bot.max_drawdown.toFixed(2)}%</strong></span>
+          </div>
+
+          <div class="card-control-toolbar">
+            <button class="btn-ctrl" onclick="openEditParamsModal('${bot.bot_id}')">⚙️ Params</button>
+            <button class="btn-ctrl" onclick="openManualTradeModal('${bot.bot_id}')">⚡ Order</button>
+            <button class="btn-ctrl btn-ctrl-danger" onclick="liquidateBot('${bot.bot_id}')">🛑 Liquidate</button>
+          </div>
+        </div>
+      `;
+    });
+  }
 
   container.innerHTML = html;
 
@@ -376,7 +697,7 @@ function renderLeaderboard(bots) {
   }
   const countEl = document.getElementById('header-bot-count');
   if (countEl) {
-    countEl.textContent = `${bots.length} Bots ($${totalCap.toFixed(0)})`;
+    countEl.textContent = `${activeBotsCache.length} Bots ($${totalCap.toFixed(0)})`;
   }
 }
 

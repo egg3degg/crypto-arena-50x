@@ -13,6 +13,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 </head>
 <body>
   <div class="app-container">
@@ -102,6 +104,47 @@
           </div>
         </div>
 
+        <!-- Leaderboard Sorting & Filtering Controls Bar -->
+        <div class="leaderboard-filter-bar">
+          <div class="filter-item">
+            <span class="filter-label">Sort By:</span>
+            <select id="leaderboard-sort-select" onchange="applyLeaderboardFilters()">
+              <option value="most_balance">💰 Most Balance (Highest Equity)</option>
+              <option value="least_balance">📉 Least Balance (Lowest Equity)</option>
+              <option value="most_trades">⚡ Most Trades Executed</option>
+              <option value="least_trades">💤 Least Trades Executed</option>
+              <option value="highest_winrate">🏆 Highest Win Rate %</option>
+              <option value="highest_pnl">📈 Top 24h PnL / ROI</option>
+              <option value="lowest_pnl">🔻 Lowest 24h PnL</option>
+              <option value="alphabetical">🔤 Alphabetical (A-Z)</option>
+            </select>
+          </div>
+
+          <div class="filter-item">
+            <span class="filter-label">Market Category:</span>
+            <div class="filter-pills" id="category-filter-pills">
+              <button class="pill-btn active" onclick="setLeaderboardCategory('ALL')">🌐 All (12)</button>
+              <button class="pill-btn" onclick="setLeaderboardCategory('CRYPTO')">🪙 Crypto (5)</button>
+              <button class="pill-btn" onclick="setLeaderboardCategory('POLYMARKET')">🔮 Polymarket (4)</button>
+              <button class="pill-btn" onclick="setLeaderboardCategory('INDIAN_STOCKS')">🇮🇳 Stocks (2)</button>
+              <button class="pill-btn" onclick="setLeaderboardCategory('COMMODITIES')">🥇 Commodities (1)</button>
+            </div>
+          </div>
+
+          <div class="filter-item">
+            <span class="filter-label">Status:</span>
+            <select id="leaderboard-status-select" onchange="applyLeaderboardFilters()">
+              <option value="ALL">All Statuses</option>
+              <option value="ACTIVE">🟢 Active Only</option>
+              <option value="PAUSED">⏸️ Paused Only</option>
+            </select>
+          </div>
+
+          <div class="filter-item search-item">
+            <input type="text" id="leaderboard-search-input" placeholder="🔍 Search bot or strategy..." oninput="applyLeaderboardFilters()">
+          </div>
+        </div>
+
         <div class="leaderboard-grid" id="leaderboard-container">
           <div class="loading-state">Connecting to Arena Engine...</div>
         </div>
@@ -112,36 +155,101 @@
         <div class="section-title-row">
           <div>
             <h2>📈 Balance Trajectory & Trade Execution Overlay</h2>
-            <span class="caption">Real-time equity growth curves with <span style="color:var(--accent-green); font-weight:700;">🟢 Green Dots (Buys / Winning Exits)</span> and <span style="color:var(--accent-red); font-weight:700;">🔴 Red Dots (Losing Exits)</span></span>
-          </div>
-          <div class="chart-pair-selector">
-            <label>Select Bot View: </label>
-            <select id="trajectory-bot-select" onchange="renderTrajectoryChart()">
-              <option value="ALL">All 12 Bots (Comparative Trajectory)</option>
-              <option value="bot_1_alphatrend">AlphaTrend (Crypto Trend)</option>
-              <option value="bot_2_meanrevert">MeanRevert (Crypto Scalper)</option>
-              <option value="bot_3_breakouthunter">BreakoutHunter (Memes: PENGU/PEPE)</option>
-              <option value="bot_4_adaptivegrid">AdaptiveGrid (Micro-Grid Maker)</option>
-              <option value="bot_5_smartmoney">SmartMoneyTracker (Whale Tracker)</option>
-              <option value="bot_6_polypredictor">PolyPredictor (Polymarket Arbitrage)</option>
-              <option value="bot_7_bharatbreakout">BharatBreakout (NSE Indian Stock)</option>
-              <option value="bot_8_desimeanrevert">DesiMeanRevert (NSE Equities Scalper)</option>
-              <option value="bot_9_hypergoldsilver">HyperGoldSilver (Hyperliquid Commodities)</option>
-              <option value="bot_10_polywhalecopy">PolyWhaleCopy (Micro-Smart Mirror)</option>
-              <option value="bot_11_polyleaderwhale">PolyLeaderWhale (Top-5 Leaderboard Mirror)</option>
-              <option value="bot_12_polymicrobot">PolyMicroBotHunter ($5-$10 Algo Sniper)</option>
-            </select>
+            <span class="caption">Institutional multi-bot equity curves with interactive zoom, timeframes, and trade markers</span>
           </div>
         </div>
 
-        <div class="chart-wrapper" style="height: 520px;">
+        <!-- Institutional Chart Controls Container -->
+        <div class="chart-controls-container">
+          <!-- Row 1: Timeframe Ranges, Zoom Controls & Scale Mode -->
+          <div class="chart-controls-row">
+            <div class="chart-control-group">
+              <span class="control-label">⏱️ Range:</span>
+              <div class="pill-group" id="trajectory-timeframe-pills">
+                <button class="chart-pill-btn" onclick="setTimeframe('1H')">1H</button>
+                <button class="chart-pill-btn" onclick="setTimeframe('4H')">4H</button>
+                <button class="chart-pill-btn" onclick="setTimeframe('12H')">12H</button>
+                <button class="chart-pill-btn" onclick="setTimeframe('24H')">24H</button>
+                <button class="chart-pill-btn active" onclick="setTimeframe('ALL')">ALL History</button>
+              </div>
+            </div>
+
+            <div class="chart-control-group">
+              <span class="control-label">🔍 Zoom & Pan:</span>
+              <div class="btn-group">
+                <button class="chart-tool-btn" onclick="handleZoomIn()" title="Zoom In (+)">➕ In</button>
+                <button class="chart-tool-btn" onclick="handleZoomOut()" title="Zoom Out (-)">➖ Out</button>
+                <button class="chart-tool-btn" onclick="handleResetZoom()" title="Reset Zoom / Pan">🔄 Reset</button>
+              </div>
+            </div>
+
+            <div class="chart-control-group">
+              <span class="control-label">📊 Y-Axis Scale:</span>
+              <div class="pill-group" id="trajectory-scale-pills">
+                <button class="chart-pill-btn active" onclick="setScaleMode('DOLLAR')">💵 Balance ($ USD)</button>
+                <button class="chart-pill-btn" onclick="setScaleMode('PERCENT')">📈 % ROI Return</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 2: Category Cohorts, Dots Filtering & Bot Dropdown -->
+          <div class="chart-controls-row" style="margin-top: 10px;">
+            <div class="chart-control-group">
+              <span class="control-label">👥 Bot Presets:</span>
+              <div class="pill-group" id="trajectory-preset-pills">
+                <button class="chart-pill-btn active" onclick="setTrajectoryPreset('ALL')">🌐 All 12</button>
+                <button class="chart-pill-btn" onclick="setTrajectoryPreset('TOP3')">🏆 Top 3 Leaders</button>
+                <button class="chart-pill-btn" onclick="setTrajectoryPreset('BOTTOM3')">📉 Bottom 3</button>
+                <button class="chart-pill-btn" onclick="setTrajectoryPreset('CRYPTO')">🪙 Crypto Only</button>
+                <button class="chart-pill-btn" onclick="setTrajectoryPreset('POLYMARKET')">🔮 Polymarket Only</button>
+                <button class="chart-pill-btn" onclick="setTrajectoryPreset('INDIAN_COMM')">🇮🇳 Stocks & Gold</button>
+              </div>
+            </div>
+
+            <div class="chart-control-group">
+              <span class="control-label">🎯 Trade Markers:</span>
+              <div class="pill-group" id="trajectory-dots-pills">
+                <button class="chart-pill-btn active" onclick="setDotVisibility('ALL')">🟢🔴 All Dots</button>
+                <button class="chart-pill-btn" onclick="setDotVisibility('WINS')">🟢 Buys/Wins</button>
+                <button class="chart-pill-btn" onclick="setDotVisibility('LOSSES')">🔴 Losses</button>
+                <button class="chart-pill-btn" onclick="setDotVisibility('NONE')">👁️ Hide Dots</button>
+              </div>
+            </div>
+
+            <div class="chart-control-group">
+              <span class="control-label">Single Bot:</span>
+              <select id="trajectory-bot-select" onchange="handleSingleBotSelect()">
+                <option value="ALL">-- Isolate Single Bot --</option>
+                <option value="bot_1_alphatrend">AlphaTrend (Crypto Trend)</option>
+                <option value="bot_2_meanrevert">MeanRevert (Crypto Scalper)</option>
+                <option value="bot_3_breakouthunter">BreakoutHunter (Memes)</option>
+                <option value="bot_4_adaptivegrid">AdaptiveGrid (Grid Maker)</option>
+                <option value="bot_5_smartmoney">SmartMoneyTracker (Whale Tracker)</option>
+                <option value="bot_6_polypredictor">PolyPredictor (Polymarket Arb)</option>
+                <option value="bot_7_bharatbreakout">BharatBreakout (NSE/NIFTY)</option>
+                <option value="bot_8_desimeanrevert">DesiMeanRevert (NSE Scalper)</option>
+                <option value="bot_9_hypergoldsilver">HyperGoldSilver (Gold & Silver)</option>
+                <option value="bot_10_polywhalecopy">PolyWhaleCopy (Micro-Smart)</option>
+                <option value="bot_11_polyleaderwhale">PolyLeaderWhale (Top-5 Whales)</option>
+                <option value="bot_12_polymicrobot">PolyMicroBotHunter ($5-$10 Algo)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Row 3: Interactive Bot Legend Toggle Chips -->
+          <div class="interactive-legend-bar" id="interactive-legend-chips">
+            <!-- Dynamic interactive toggle chips -->
+          </div>
+        </div>
+
+        <div class="chart-wrapper" style="height: 520px; position: relative;">
           <canvas id="trajectoryChartCanvas"></canvas>
         </div>
 
-        <div style="margin-top:14px; display:flex; gap:20px; font-size:12px; color:var(--text-muted); justify-content:center;">
+        <div style="margin-top:14px; display:flex; flex-wrap:wrap; gap:20px; font-size:12px; color:var(--text-muted); justify-content:center;">
           <span>🟢 <strong>Green Dot:</strong> Buy Order Entry OR Take-Profit Win</span>
           <span>🔴 <strong>Red Dot:</strong> Stop-Loss Exit / Loss</span>
-          <span>💡 <em>Hover over any green/red dot to view trade details, entry/exit price, and reason!</em></span>
+          <span>💡 <strong>Controls:</strong> Mouse Wheel to Zoom | Click & Drag to Pan | Click bot chips above to toggle individual lines</span>
         </div>
       </section>
 
