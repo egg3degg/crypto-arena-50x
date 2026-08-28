@@ -246,11 +246,20 @@ function renderTrajectoryFromCache() {
     
     // Map snapshot equity
     const snapMap = {};
-    botData.snapshots.forEach(s => { snapMap[s.timestamp] = s.total_equity; });
+    botData.snapshots.forEach(s => {
+      const eq = (s.total_equity !== undefined && s.total_equity !== null) ? Number(s.total_equity) : 50.0;
+      snapMap[s.timestamp] = eq;
+    });
 
     let lastVal = 50.0;
+    if (botData.snapshots.length > 0) {
+      lastVal = Number(botData.snapshots[0].total_equity || 50.0);
+    }
+
     const dataPoints = filteredTimestamps.map(ts => {
-      if (snapMap[ts] !== undefined) lastVal = snapMap[ts];
+      if (snapMap[ts] !== undefined) {
+        lastVal = snapMap[ts];
+      }
       if (trajectoryScaleMode === 'PERCENT') {
         return ((lastVal - 50.0) / 50.0) * 100.0; // ROI %
       }
@@ -284,12 +293,12 @@ function renderTrajectoryFromCache() {
       }
 
       if (showDot && tradeMatch) {
-        pointRadiuses.push(7);
+        pointRadiuses.push(8);
         pointBackgroundColors.push(tradeMatch.dot_color);
         pointBorderColors.push('#ffffff');
         pointTradeData.push(tradeMatch);
       } else {
-        pointRadiuses.push(1);
+        pointRadiuses.push(0); // Clean continuous line without noisy baseline dots
         pointBackgroundColors.push(color);
         pointBorderColors.push(color);
         pointTradeData.push(null);
@@ -309,7 +318,7 @@ function renderTrajectoryFromCache() {
       pointRadius: pointRadiuses,
       pointBackgroundColor: pointBackgroundColors,
       pointBorderColor: pointBorderColors,
-      pointHoverRadius: 9,
+      pointHoverRadius: 10,
       tradeDetails: pointTradeData
     });
   });

@@ -146,20 +146,35 @@ async def get_equity_trajectory(bot_id: Optional[str] = None):
     if not engine:
         return {}
     
+    from datetime import datetime, timezone
     snapshots = engine.db.get_equity_history(bot_id=bot_id)
     trades = engine.db.get_trades(bot_id=bot_id, limit=200)
     bots = engine.get_leaderboard_data()
 
-    # Group snapshots by bot
     bot_trajectories = {}
     for b in bots:
         b_id = b['bot_id']
         b_snaps = [s for s in snapshots if s['bot_id'] == b_id]
         b_trades = [t for t in trades if t['bot_id'] == b_id]
         
-        # If no snapshots yet, use initial $50
-        if not b_snaps:
-            b_snaps = [{'timestamp': datetime.now(timezone.utc).isoformat(), 'total_equity': 50.0}]
+        # Clean snapshot data and guarantee total_equity calculation
+        cleaned_snaps = []
+        for s in b_snaps:
+            eq = float(s.get('total_equity', 50.0))
+            # Sanity guard: total_equity represents total net worth, not available cash
+            if eq < 20.0 and float(s.get('balance', 0)) < 20.0:
+                cost_in_positions = 50.0 - float(s.get('balance', 0.0))
+                eq = float(s.get('balance', 0.0)) + cost_in_positions + float(s.get('unrealized_pnl', 0.0))
+            
+            cleaned_snaps.append({
+                'timestamp': s['timestamp'],
+                'balance': float(s.get('balance', 50.0)),
+                'total_equity': eq,
+                'roi_pct': float(s.get('roi_pct', 0.0))
+            })
+
+        if not cleaned_snaps:
+            cleaned_snaps = [{'timestamp': datetime.now(timezone.utc).isoformat(), 'total_equity': 50.0, 'balance': 50.0}]
 
         # Prepare trade markers with dot colors
         markers = []
@@ -183,7 +198,7 @@ async def get_equity_trajectory(bot_id: Optional[str] = None):
         bot_trajectories[b_id] = {
             'bot_id': b_id,
             'name': b['name'],
-            'snapshots': b_snaps,
+            'snapshots': cleaned_snaps,
             'trade_markers': markers
         }
 
