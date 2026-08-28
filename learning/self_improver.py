@@ -1,28 +1,60 @@
 """
-Self-Improvement & Adaptation Engine
-Monitors bot performance, win-rates, drawdowns, and adapts strategy hyperparameters dynamically.
+Walk-Forward Strategy Optimization & Self-Improvement Engine
+Replaces hardcoded heuristics with real quantitative Walk-Forward parameter sweeps.
+Performs out-of-sample validation and deploys verified risk-adjusted hyperparameters.
 """
+import math
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
+from datetime import datetime, timezone
+import pandas as pd
+
 try:
     from core.database import ArenaDatabase
+    from core.backtester import StrategyBacktester
     from strategies.base_strategy import BaseStrategy
 except (ImportError, ValueError):
     from ..core.database import ArenaDatabase
+    from ..core.backtester import StrategyBacktester
     from ..strategies.base_strategy import BaseStrategy
 
-logger = logging.getLogger("CryptoArena.SelfImprover")
+logger = logging.getLogger("CryptoArena.WalkForwardImprover")
 
 class SelfImprovementEngine:
-    def __init__(self, db: ArenaDatabase, strategies: Dict[str, BaseStrategy]):
+    def __init__(self, db: ArenaDatabase, strategies: Dict[str, BaseStrategy], backtester: Optional[StrategyBacktester] = None):
         self.db = db
         self.strategies = strategies
+        self.backtester = backtester
+        self.last_opt_time = 0
 
-    def evaluate_and_optimize(self, market_overview: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Evaluates each bot's performance metrics and applies dynamic hyperparameter adaptations."""
+        # Parameter Search Grid
+        self.param_grid = {
+            'take_profit_pct': [0.02, 0.03, 0.04, 0.05, 0.06],
+            'stop_loss_pct': [0.015, 0.02, 0.025, 0.03],
+            'trailing_stop_pct': [0.0, 0.01, 0.015, 0.02]
+        }
+
+    def evaluate_and_optimize(self, market_overview: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Executes walk-forward parameter sweep and out-of-sample validation across active bots."""
+        if not self.backtester:
+            logger.warning("Backtester not initialized in SelfImprovementEngine. Skipping walk-forward sweep.")
+            return []
+
         adjustments = []
-        market_state = market_overview.get('overall_market_state', 'SIDEWAYS_CONSOLIDATION')
         bots = self.db.get_all_bots()
+
+        # Primary benchmark symbol for crypto strategies
+        benchmark_symbol = "SOL/USDT"
+        df = self.backtester.market_feed.fetch_ohlcv_dataframe(benchmark_symbol)
+
+        if df is None or len(df) < 50:
+            logger.warning(f"Insufficient OHLCV data ({len(df) if df is not None else 0} candles) for Walk-Forward optimization.")
+            return []
+
+        # Split into 75% in-sample (train) and 25% out-of-sample (test/validation)
+        split_idx = int(len(df) * 0.75)
+        train_df = df.iloc[:split_idx].copy()
+        val_df = df.iloc[split_idx:].copy()
 
         for bot in bots:
             bot_id = bot['bot_id']
@@ -30,78 +62,114 @@ class SelfImprovementEngine:
             if not strategy:
                 continue
 
-            trades = self.db.get_trades(bot_id, limit=20)
-            closed_trades = [t for t in trades if t['side'] == 'SELL']
+            strat_type = getattr(strategy, 'strategy_type', 'trend')
+            old_tp = strategy.params.get('take_profit_pct', 0.045)
+            old_sl = strategy.params.get('stop_loss_pct', 0.025)
+            old_trail = strategy.params.get('trailing_stop_pct', 0.0)
 
-            win_rate = bot['win_rate']
-            total_trades = bot['total_trades']
-            max_drawdown = bot['max_drawdown']
+            best_train_score = -999.0
+            top_candidates = []
 
-            # Adaptation 1: Market Regime Based Tuning
-            if market_state == "BULLISH_MOMENTUM":
-                if bot_id == "bot_1_alphatrend":
-                    old_tp = strategy.params.get('take_profit_pct', 0.045)
-                    new_tp = 0.055
-                    if old_tp != new_tp:
-                        strategy.update_parameters({'take_profit_pct': new_tp})
-                        self._log_and_record(adjustments, bot_id, 'take_profit_pct', old_tp, new_tp,
-                                             "Bullish momentum detected: Expanding TP to 5.5% to let winners run")
+            # 1. In-Sample Parameter Sweep
+            for tp in self.param_grid['take_profit_pct']:
+                for sl in self.param_grid['stop_loss_pct']:
+                    for trail in self.param_grid['trailing_stop_pct']:
+                        bt_res = self.backtester.run_backtest(
+                            strategy_type=strat_type,
+                            symbol=benchmark_symbol,
+                            df=train_df,
+                            stake_usd=strategy.params.get('stake_usd', 25.0),
+                            take_profit_pct=tp,
+                            stop_loss_pct=sl,
+                            trailing_stop_pct=trail if trail > 0 else None
+                        )
 
-                elif bot_id == "bot_3_breakouthunter":
-                    old_vol = strategy.params.get('volume_surge_multiplier', 1.8)
-                    new_vol = 1.6
-                    if old_vol != new_vol:
-                        strategy.update_parameters({'volume_surge_multiplier': new_vol})
-                        self._log_and_record(adjustments, bot_id, 'volume_surge_multiplier', old_vol, new_vol,
-                                             "Bull trend: Lowering breakout volume threshold to 1.6x for earlier entries")
+                        if 'error' in bt_res or bt_res.get('total_trades', 0) < 2:
+                            continue
 
-            elif market_state == "SIDEWAYS_CONSOLIDATION":
-                if bot_id == "bot_2_meanrevert":
-                    old_tp = strategy.params.get('take_profit_pct', 0.032)
-                    new_tp = 0.024
-                    if old_tp != new_tp:
-                        strategy.update_parameters({'take_profit_pct': new_tp})
-                        self._log_and_record(adjustments, bot_id, 'take_profit_pct', old_tp, new_tp,
-                                             "Choppy regime: Tightening TP to 2.4% for rapid turnover")
+                        sharpe = bt_res.get('sharpe_ratio', 0.0)
+                        trades_cnt = bt_res.get('total_trades', 1)
+                        # Statistical quality score: Sharpe * sqrt(trades)
+                        score = sharpe * math.sqrt(trades_cnt)
 
-                elif bot_id == "bot_4_adaptivegrid":
-                    old_step = strategy.params.get('grid_step_pct', 0.015)
-                    new_step = 0.012
-                    if old_step != new_step:
-                        strategy.update_parameters({'grid_step_pct': new_step})
-                        self._log_and_record(adjustments, bot_id, 'grid_step_pct', old_step, new_step,
-                                             "Choppy regime: Tightening grid step to 1.2% to catch micro-oscillations")
+                        top_candidates.append({
+                            'tp': tp,
+                            'sl': sl,
+                            'trail': trail,
+                            'train_score': score,
+                            'train_sharpe': sharpe,
+                            'trades': trades_cnt
+                        })
 
-            # Adaptation 2: Risk Management / Drawdown Protection
-            if max_drawdown > 4.0 or (total_trades >= 4 and win_rate < 40.0):
-                # Tighten Stop Loss for risk protection
-                current_sl = strategy.params.get('stop_loss_pct', 0.025)
-                new_sl = max(0.015, current_sl * 0.85)
-                if round(current_sl, 4) != round(new_sl, 4):
-                    strategy.update_parameters({'stop_loss_pct': new_sl})
-                    self._log_and_record(adjustments, bot_id, 'stop_loss_pct', round(current_sl, 4), round(new_sl, 4),
-                                         f"Drawdown defense ({max_drawdown:.1f}% DD / {win_rate:.0f}% WR): Tightening Stop Loss to {new_sl*100:.2f}%")
+            if not top_candidates:
+                continue
 
-            # Adaptation 3: High Win-Rate Alpha Boost
-            elif total_trades >= 3 and win_rate >= 66.0 and max_drawdown < 2.0:
-                current_stake = strategy.params.get('stake_usd', 25.0)
-                # Allow sizing up to $30 if performing exceptionally well
-                new_stake = min(35.0, current_stake + 5.0)
-                if current_stake != new_stake:
-                    strategy.update_parameters({'stake_usd': new_stake})
-                    self._log_and_record(adjustments, bot_id, 'stake_usd', current_stake, new_stake,
-                                         f"Alpha Performance Boost ({win_rate:.0f}% WR): Increasing stake size to ${new_stake:.2f}")
+            # Sort by highest in-sample score and take top 3
+            top_candidates.sort(key=lambda x: x['train_score'], reverse=True)
+            top_3 = top_candidates[:3]
 
-        logger.info(f"Self-Improvement evaluation completed. {len(adjustments)} parameter adjustments applied.")
+            # 2. Out-of-Sample Validation
+            best_val_candidate = None
+            best_val_score = -999.0
+
+            for cand in top_3:
+                val_res = self.backtester.run_backtest(
+                    strategy_type=strat_type,
+                    symbol=benchmark_symbol,
+                    df=val_df,
+                    stake_usd=strategy.params.get('stake_usd', 25.0),
+                    take_profit_pct=cand['tp'],
+                    stop_loss_pct=cand['sl'],
+                    trailing_stop_pct=cand['trail'] if cand['trail'] > 0 else None
+                )
+
+                if 'error' in val_res:
+                    continue
+
+                val_sharpe = val_res.get('sharpe_ratio', 0.0)
+                val_trades = val_res.get('total_trades', 0)
+                val_pnl = val_res.get('total_pnl', 0.0)
+
+                # Validation passes if out-of-sample Sharpe is positive and profitable
+                if val_pnl >= 0 and val_sharpe > best_val_score:
+                    best_val_score = val_sharpe
+                    best_val_candidate = cand
+                    cand['val_sharpe'] = val_sharpe
+                    cand['val_pnl'] = val_pnl
+
+            # 3. Deploy Best Validated Parameters
+            if best_val_candidate and (best_val_candidate['tp'] != old_tp or best_val_candidate['sl'] != old_sl or best_val_candidate['trail'] != old_trail):
+                new_tp = best_val_candidate['tp']
+                new_sl = best_val_candidate['sl']
+                new_trail = best_val_candidate['trail']
+
+                strategy.update_parameters({
+                    'take_profit_pct': new_tp,
+                    'stop_loss_pct': new_sl,
+                    'trailing_stop_pct': new_trail if new_trail > 0 else None
+                })
+
+                reason_str = f"Walk-Forward Verified: Train Score {best_val_candidate['train_score']:.2f} -> Out-of-Sample Sharpe {best_val_candidate.get('val_sharpe', 0.0):.2f}"
+
+                # Record TP adjustment
+                if new_tp != old_tp:
+                    self._log_and_record(adjustments, bot_id, 'take_profit_pct', old_tp, new_tp, f"{reason_str} (TP optimized)")
+                # Record SL adjustment
+                if new_sl != old_sl:
+                    self._log_and_record(adjustments, bot_id, 'stop_loss_pct', old_sl, new_sl, f"{reason_str} (SL optimized)")
+                # Record Trailing Stop adjustment
+                if new_trail != old_trail:
+                    self._log_and_record(adjustments, bot_id, 'trailing_stop_pct', old_trail, new_trail, f"{reason_str} (Trailing SL optimized)")
+
+        logger.info(f"Walk-Forward Optimization cycle completed with {len(adjustments)} parameter adjustments deployed.")
         return adjustments
 
     def _log_and_record(self, adjustments_list: list, bot_id: str, param: str, old_val: Any, new_val: Any, reason: str):
         self.db.log_parameter_adjustment(bot_id, param, old_val, new_val, reason)
         adjustments_list.append({
             'bot_id': bot_id,
-            'param': param,
-            'old_value': old_val,
-            'new_value': new_val,
+            'parameter_name': param,
+            'old_value': str(old_val),
+            'new_value': str(new_val),
             'reason': reason
         })
-        logger.info(f"[Self-Improvement] Bot '{bot_id}' parameter '{param}' tuned: {old_val} -> {new_val} ({reason})")

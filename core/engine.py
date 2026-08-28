@@ -33,6 +33,8 @@ try:
     from research.polymarket_whale_tracker import PolymarketWhaleTracker
     from research.indian_market_feed import IndianAndCommodityFeed
     from core.backtester import StrategyBacktester
+    from core.capital_allocator import CapitalAllocator
+    from core.risk_manager import PortfolioRiskManager
     from learning.self_improver import SelfImprovementEngine
     from notifications.notifier import ArenaNotifier
     from config import config
@@ -41,6 +43,8 @@ except (ImportError, ValueError):
     from .simulator import PaperWallet
     from .market_feed import MarketFeed
     from .backtester import StrategyBacktester
+    from .capital_allocator import CapitalAllocator
+    from .risk_manager import PortfolioRiskManager
     from ..strategies.base_strategy import BaseStrategy, Signal
     from ..strategies.alpha_trend import AlphaTrendStrategy
     from ..strategies.mean_revert import MeanRevertStrategy
@@ -95,8 +99,15 @@ class TournamentEngine:
 
         self._setup_bots()
 
-        # Self-Improvement Engine
-        self.self_improver = SelfImprovementEngine(self.db, self.strategies)
+        # Phase 1 & 2: Capital Allocator & Portfolio Risk Manager
+        self.capital_allocator = CapitalAllocator(self.db, base_stake_usd=25.0)
+        self.risk_manager = PortfolioRiskManager(max_exposure_ratio=0.70, circuit_breaker_threshold=540.0)
+
+        # Phase 2: Walk-Forward Self-Improvement Engine
+        self.self_improver = SelfImprovementEngine(self.db, self.strategies, backtester=self.backtester)
+
+        # Run initial capital allocation and strategy alignment
+        self.capital_allocator.rebalance_allocations(self.strategies, force=True)
 
         self.is_running = False
         self.last_research_time = 0
@@ -357,13 +368,36 @@ class TournamentEngine:
                     )
 
                 if decision.action == Signal.BUY:
+                    # 1. Dynamic Capital Allocation Check
+                    allocated_stake = self.capital_allocator.get_bot_stake(bot_id)
+                    effective_stake = min(decision.stake_usd, allocated_stake)
+
+                    # 2. Portfolio Risk Management (Exposure cap, Sector correlation & Circuit breaker)
+                    can_trade, risk_msg = self.risk_manager.should_allow_trade(
+                        bot_id=bot_id,
+                        symbol=symbol,
+                        usd_amount=effective_stake,
+                        wallets=self.wallets
+                    )
+                    if not can_trade:
+                        logger.info(f"[{bot_id}] BUY blocked by Risk Manager for {symbol}: {risk_msg}")
+                        continue
+
+                    # 3. Volatility Sizing via ATR
+                    current_atr = None
+                    if df is not None and 'atr' in df and len(df) > 0:
+                        last_atr = df['atr'].iloc[-1]
+                        if pd.notna(last_atr):
+                            current_atr = float(last_atr)
+
                     pos = wallet.execute_buy(
                         symbol=symbol,
                         price=ticker['price'],
-                        usd_amount=decision.stake_usd,
+                        usd_amount=effective_stake,
                         stop_loss_pct=decision.stop_loss_pct,
                         take_profit_pct=decision.take_profit_pct,
                         trailing_stop_pct=decision.trailing_stop_pct,
+                        atr=current_atr,
                         reason=decision.reason
                     )
                     if pos:
@@ -408,6 +442,9 @@ class TournamentEngine:
                 unrealized = sum(p.get('unrealized_pnl', 0.0) for p in open_pos)
                 roi_pct = ((total_equity - wallet.initial_capital) / wallet.initial_capital) * 100.0
                 self.db.record_equity_snapshot(bot_id, wallet.available_balance, unrealized, total_equity, roi_pct)
+
+        # 4. Periodic Capital Reallocation & Strategy Health Check (every 6 hours)
+        self.capital_allocator.rebalance_allocations(self.strategies)
 
         # 4. Periodic Deep Research Cycle (every 30m or initial)
         if now - self.last_research_time > config.RESEARCH_CYCLE_SECONDS:
@@ -481,6 +518,9 @@ class TournamentEngine:
             roi = ((total_equity - b['initial_capital']) / b['initial_capital']) * 100.0
             pnl = total_equity - b['initial_capital']
 
+            health = self.capital_allocator.get_bot_health(bot_id)
+            allocated_stake = self.capital_allocator.get_bot_stake(bot_id)
+
             leaderboard.append({
                 'bot_id': bot_id,
                 'name': b['name'],
@@ -496,6 +536,8 @@ class TournamentEngine:
                 'winning_trades': b['winning_trades'],
                 'losing_trades': b['losing_trades'],
                 'max_drawdown': round(b['max_drawdown'], 2),
+                'health_status': health,
+                'allocated_stake_usd': allocated_stake,
                 'open_positions_count': len(open_pos),
                 'is_active': bool(b.get('is_active', 1)),
                 'active_strategy_params': self.strategies[bot_id].params if bot_id in self.strategies else {}
@@ -503,6 +545,68 @@ class TournamentEngine:
 
         leaderboard.sort(key=lambda x: x['total_pnl'], reverse=True)
         return leaderboard
+
+    def get_performance_report(self) -> Dict[str, Any]:
+        """Generates comprehensive portfolio and per-bot performance metrics."""
+        portfolio_metrics = self.risk_manager.calculate_portfolio_metrics(self.wallets)
+        bot_reports = []
+
+        for bot_id, strategy in self.strategies.items():
+            b = self.db.get_bot(bot_id) or {}
+            wallet = self.wallets.get(bot_id)
+            perf = self.capital_allocator.calculate_rolling_sharpe(bot_id, lookback_hours=24)
+            health = self.capital_allocator.get_bot_health(bot_id)
+            allocated_stake = self.capital_allocator.get_bot_stake(bot_id)
+
+            # Auto-pause decaying strategies if detected
+            if health == 'PAUSED_DECAY' and b.get('is_active', 1):
+                self.toggle_bot(bot_id, is_active=False)
+                self.db.log_research(
+                    category="STRATEGY_DECAY",
+                    title=f"Alpha Decay Alert: {b.get('name')}",
+                    content="Auto-pausing strategy due to sustained negative Sharpe ratio."
+                )
+
+            current_eq = wallet.get_total_equity() if wallet else 50.0
+            init_cap = b.get('initial_capital', 50.0)
+            total_pnl = current_eq - init_cap
+            roi_pct = (total_pnl / init_cap * 100.0) if init_cap > 0 else 0.0
+
+            # Profit Factor
+            closed_trades = [t for t in self.db.get_trades(bot_id, limit=50) if t['side'] == 'SELL']
+            wins = [t for t in closed_trades if t.get('realized_pnl', 0) > 0]
+            losses = [t for t in closed_trades if t.get('realized_pnl', 0) < 0]
+            gross_p = sum(t['realized_pnl'] for t in wins)
+            gross_l = abs(sum(t['realized_pnl'] for t in losses))
+            profit_factor = round((gross_p / gross_l) if gross_l > 0 else (9.99 if gross_p > 0 else 1.0), 2)
+
+            bot_reports.append({
+                'bot_id': bot_id,
+                'name': b.get('name', bot_id),
+                'strategy_name': b.get('strategy_name', ''),
+                'health_status': health,
+                'allocated_stake_usd': allocated_stake,
+                'sharpe_ratio': perf['sharpe'],
+                'sortino_ratio': perf['sortino'],
+                'win_rate': round(b.get('win_rate', 0.0), 1),
+                'total_trades': b.get('total_trades', 0),
+                'winning_trades': b.get('winning_trades', 0),
+                'losing_trades': b.get('losing_trades', 0),
+                'profit_factor': profit_factor,
+                'max_drawdown': round(b.get('max_drawdown', 0.0), 2),
+                'current_equity': round(current_eq, 2),
+                'total_pnl': round(total_pnl, 2),
+                'roi_pct': round(roi_pct, 2),
+                'is_active': bool(b.get('is_active', 1))
+            })
+
+        bot_reports.sort(key=lambda x: x['sharpe_ratio'], reverse=True)
+
+        return {
+            'portfolio': portfolio_metrics,
+            'bots': bot_reports,
+            'correlation_clusters': {k: list(v) for k, v in self.risk_manager.correlation_clusters.items()}
+        }
 
     def toggle_bot(self, bot_id: str, is_active: bool) -> bool:
         """Pauses or resumes an individual bot."""

@@ -94,12 +94,48 @@ def test_regime_analyzer(temp_db):
     res = analyzer.analyze_pair("SOL/USDT", df)
     assert res['regime'] in ["STRONG_BULL_TREND", "STRONG_BEAR_TREND", "RANGING_CHOPPY", "HIGH_VOLATILITY_EXPANSION"]
 
-def test_self_improver(temp_db):
-    strat = AlphaTrendStrategy("bot_1_alphatrend")
+def test_capital_allocator(temp_db):
+    from crypto_arena.core.capital_allocator import CapitalAllocator
+    temp_db.init_tournament("Test Cup", capital_per_bot=50.0)
     temp_db.register_bot("bot_1_alphatrend", "AlphaTrend", "Strategy", "Desc", 50.0)
-    improver = SelfImprovementEngine(temp_db, {"bot_1_alphatrend": strat})
+    temp_db.register_bot("bot_7_bharatbreakout", "BharatBreakout", "Strategy", "Desc", 50.0)
 
-    market_overview = {'overall_market_state': 'BULLISH_MOMENTUM'}
-    adjustments = improver.evaluate_and_optimize(market_overview)
-    assert len(adjustments) > 0
-    assert strat.params['take_profit_pct'] == 0.055
+    allocator = CapitalAllocator(temp_db, base_stake_usd=25.0)
+    realloc = allocator.rebalance_allocations({}, force=True)
+    
+    assert "bot_1_alphatrend" in realloc
+    assert "bot_7_bharatbreakout" in realloc
+    # Verify synthetic feed bot is capped at 50% max ($12.50)
+    assert allocator.get_bot_stake("bot_7_bharatbreakout") <= 12.50
+    assert allocator.get_bot_health("bot_1_alphatrend") in ["HEALTHY", "DEGRADING", "PAUSED_DECAY"]
+
+def test_portfolio_risk_manager(temp_db):
+    from crypto_arena.core.risk_manager import PortfolioRiskManager
+    from crypto_arena.core.simulator import PaperWallet
+    
+    temp_db.init_tournament("Test Cup", capital_per_bot=50.0)
+    temp_db.register_bot("bot_1", "TestBot1", "Strategy", "Desc", 50.0)
+    temp_db.register_bot("bot_2", "TestBot2", "Strategy", "Desc", 50.0)
+    
+    wallet1 = PaperWallet("bot_1", temp_db, initial_capital=50.0)
+    wallet2 = PaperWallet("bot_2", temp_db, initial_capital=50.0)
+    wallets = {"bot_1": wallet1, "bot_2": wallet2}
+    
+    risk_mgr = PortfolioRiskManager(max_exposure_ratio=0.70)
+    can_trade, msg = risk_mgr.should_allow_trade("bot_1", "SOL/USDT", 25.0, wallets)
+    assert can_trade is True
+
+def test_self_improver_walk_forward(temp_db):
+    from crypto_arena.core.backtester import StrategyBacktester
+    feed = MarketFeed()
+    backtester = StrategyBacktester(feed)
+    
+    strat = AlphaTrendStrategy("bot_1_alphatrend")
+    temp_db.init_tournament("Test Cup", capital_per_bot=50.0)
+    temp_db.register_bot("bot_1_alphatrend", "AlphaTrend", "Strategy", "Desc", 50.0)
+    
+    improver = SelfImprovementEngine(temp_db, {"bot_1_alphatrend": strat}, backtester=backtester)
+    adjustments = improver.evaluate_and_optimize()
+    # Strategy parameters remain valid within bounded grid
+    assert strat.params['take_profit_pct'] in [0.02, 0.03, 0.04, 0.045, 0.05, 0.055, 0.06]
+    assert strat.params['stop_loss_pct'] in [0.015, 0.02, 0.025, 0.03]

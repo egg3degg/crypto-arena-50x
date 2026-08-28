@@ -43,6 +43,25 @@ class PaperWallet:
             self.total_trades = 0
             self.winning_trades = 0
             self.losing_trades = 0
+            self.risk_per_trade = 0.02 # 2% risk budget per trade
+
+    def calculate_volatility_adjusted_stake(self, price: float, atr: Optional[float] = None, base_stake: float = 25.0) -> float:
+        """Dynamically scales position sizing based on 14-period ATR volatility."""
+        if not atr or atr <= 0 or price <= 0:
+            return max(self.min_order_usd, min(base_stake, self.available_balance))
+
+        # Normalized volatility: ATR / Price
+        volatility_ratio = atr / price
+        # Risk budget = 2% of total equity
+        total_eq = self.get_total_equity()
+        risk_budget = total_eq * getattr(self, 'risk_per_trade', 0.02)
+        
+        # Volatility sizing: In quiet market bet higher conviction, in wild volatility bet safer
+        vol_adjusted_stake = risk_budget / max(0.005, volatility_ratio)
+        
+        # Cap between min_order_usd ($10) and max stake ($45 or available cash)
+        final_stake = max(self.min_order_usd, min(base_stake * 1.5, vol_adjusted_stake, self.available_balance))
+        return round(final_stake, 2)
 
     def get_open_positions(self) -> List[Dict[str, Any]]:
         return self.db.get_open_positions(self.bot_id)
@@ -61,8 +80,13 @@ class PaperWallet:
                     stop_loss_pct: Optional[float] = None,
                     take_profit_pct: Optional[float] = None,
                     trailing_stop_pct: Optional[float] = None,
+                    atr: Optional[float] = None,
                     reason: str = "SIGNAL") -> Optional[Dict[str, Any]]:
-        """Executes a simulated BUY order, deducting capital and fees."""
+        """Executes a simulated BUY order with optional volatility-adjusted position sizing."""
+        # Calculate dynamic volatility sizing if ATR is provided
+        if atr and atr > 0:
+            usd_amount = self.calculate_volatility_adjusted_stake(price=price, atr=atr, base_stake=usd_amount)
+
         can_buy, msg = self.can_open_position(usd_amount)
         if not can_buy:
             logger.warning(f"[{self.bot_id}] BUY rejected for {symbol}: {msg}")

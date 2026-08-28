@@ -232,6 +232,12 @@ async def get_equity_trajectory(bot_id: Optional[str] = None):
 
     return bot_trajectories
 
+@app.get("/api/performance-report")
+async def get_performance_report():
+    if not engine:
+        return {}
+    return engine.get_performance_report()
+
 @app.get("/api/market-overview")
 async def get_market_overview():
     if not engine:

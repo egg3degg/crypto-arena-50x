@@ -83,8 +83,8 @@
       <button class="tab-btn" onclick="switchTab('analytics')">📊 Portfolio Analytics</button>
       <button class="tab-btn" onclick="switchTab('backtest')">🧪 30-Day Backtester</button>
       <button class="tab-btn" onclick="switchTab('research')">🧠 Deep Research & Sentiment</button>
-      <button class="tab-btn" onclick="switchTab('learning')">⚙️ Self-Improvement AI</button>
       <button class="tab-btn" onclick="switchTab('trades')">⚡ Live Trades</button>
+      <button class="tab-btn" onclick="switchTab('performance')" style="color:var(--accent-green); border-color:rgba(16,185,129,0.35);">🛡️ Performance & Risk</button>
       <button class="tab-btn" onclick="switchTab('docs')" style="color:var(--gold); border-color:rgba(251,191,36,0.3);">📚 Documentation</button>
     </nav>
 
@@ -580,7 +580,70 @@
         </div>
       </section>
 
-      <!-- TAB 10: COMPREHENSIVE DOCUMENTATION & GUIDE HUB -->
+      <!-- TAB 10: PERFORMANCE, RISK MANAGEMENT & STRATEGY HEALTH -->
+      <section id="tab-performance" class="tab-pane">
+        <div class="section-title-row">
+          <div>
+            <h2>🛡️ Portfolio Risk Management & Quantitative Health Matrix</h2>
+            <span class="caption">Real-time directional exposure limits, sector correlation controls, dynamic Sharpe-based capital allocations & alpha decay defense</span>
+          </div>
+          <button class="btn-ctrl" onclick="fetchPerformanceReport()">🔄 Refresh Risk Report</button>
+        </div>
+
+        <!-- Portfolio Risk KPI Grid -->
+        <div class="stats-overview-grid" style="margin-bottom:20px;">
+          <div class="metric-card">
+            <span class="metric-label">DIRECTIONAL EXPOSURE</span>
+            <span class="metric-value" id="risk-exposure-pct">0.0%</span>
+            <small style="color:var(--text-muted);">Max Cap: 70.0%</small>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">TOTAL PORTFOLIO CAPITAL</span>
+            <span class="metric-value" id="risk-total-equity">$600.00</span>
+            <small style="color:var(--text-muted);">$50.00 x 12 Bots</small>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">CIRCUIT BREAKER</span>
+            <span class="metric-value" id="risk-circuit-breaker-status" style="color:var(--accent-green);">🟢 SECURE</span>
+            <small style="color:var(--text-muted);">Triggers at 10% Drawdown ($540)</small>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">CORRELATION CLUSTERS</span>
+            <span class="metric-value" id="risk-open-clusters" style="font-size:18px;">3 Active</span>
+            <small style="color:var(--text-muted);">Max 3 Concurrent per Cluster</small>
+          </div>
+        </div>
+
+        <!-- Bot Alpha & Health Matrix Table -->
+        <div class="table-card">
+          <div class="section-title-row">
+            <h3>📈 Quantitative Strategy Health & Dynamic Capital Allocations</h3>
+          </div>
+          <div class="log-table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Bot Name</th>
+                  <th>Strategy Health</th>
+                  <th>Rolling Sharpe (24h)</th>
+                  <th>Sortino Ratio</th>
+                  <th>Win Rate %</th>
+                  <th>Profit Factor</th>
+                  <th>Allocated Stake</th>
+                  <th>Current Equity</th>
+                  <th>Max DD</th>
+                  <th>State</th>
+                </tr>
+              </thead>
+              <tbody id="performance-bot-rows">
+                <tr><td colspan="10" style="text-align:center; color:var(--text-muted);">Loading quantitative performance metrics...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 11: COMPREHENSIVE DOCUMENTATION & GUIDE HUB -->
       <section id="tab-docs" class="tab-pane">
         <div class="section-title-row">
           <div>

@@ -113,6 +113,8 @@ function switchTab(tabId, el) {
     if (pairSelect) loadCandlestickChart(pairSelect.value);
   } else if (tabId === 'polymarket') {
     fetchPolymarketData();
+  } else if (tabId === 'performance') {
+    fetchPerformanceReport();
   }
 }
 
@@ -703,7 +705,10 @@ function renderFilteredLeaderboard() {
             </div>
           </div>
 
-          <div class="bot-name">${bot.name}</div>
+          <div class="bot-name" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>${bot.name}</span>
+            <span style="font-size:11px; font-weight:600;">${bot.health_status === 'DEGRADING' ? '🟡 Degrading' : (bot.health_status === 'PAUSED_DECAY' ? '🔴 Paused' : '🟢 Healthy')}</span>
+          </div>
           <div class="bot-strat-tag">${bot.strategy_name}</div>
 
           <div class="bot-stats-grid">
@@ -720,8 +725,8 @@ function renderFilteredLeaderboard() {
               <span class="v">${bot.win_rate.toFixed(1)}% <small style="color:var(--text-muted)">(${bot.winning_trades}W / ${bot.losing_trades}L)</small></span>
             </div>
             <div class="stat-item">
-              <span class="k">Total Trades</span>
-              <span class="v">${totalTrades} Closed <small style="color:var(--accent-cyan)">(${bot.open_positions_count} Open)</small></span>
+              <span class="k">Allocated Stake</span>
+              <span class="v" style="color:var(--accent-cyan); font-weight:700;">$${(bot.allocated_stake_usd || 25.0).toFixed(2)}</span>
             </div>
           </div>
 
@@ -1400,4 +1405,73 @@ async function openLiveSwitchModal() {
   } catch (e) {
     body.innerHTML = `<p style="color:var(--accent-red);">Failed to export winner metrics. Ensure tournament is active.</p>`;
   }
+}
+
+// -------------------------------------------------------------
+// TAB 10: QUANTITATIVE PERFORMANCE & PORTFOLIO RISK REPORT
+// -------------------------------------------------------------
+async function fetchPerformanceReport() {
+  try {
+    const data = await fetch('/api/performance-report').then(r => r.json());
+    renderPerformanceTab(data);
+  } catch (e) {
+    console.error("Performance report fetch error", e);
+  }
+}
+
+function renderPerformanceTab(data) {
+  if (!data || !data.portfolio) return;
+
+  const port = data.portfolio;
+  const exposureEl = document.getElementById('risk-exposure-pct');
+  const equityEl = document.getElementById('risk-total-equity');
+  const cbEl = document.getElementById('risk-circuit-breaker-status');
+  const clusterEl = document.getElementById('risk-open-clusters');
+
+  if (exposureEl) {
+    exposureEl.textContent = `${port.exposure_pct}%`;
+    exposureEl.style.color = port.exposure_pct > 60 ? 'var(--accent-red)' : 'var(--accent-cyan)';
+  }
+  if (equityEl) {
+    equityEl.textContent = `$${port.total_equity.toFixed(2)}`;
+  }
+  if (cbEl) {
+    if (data.circuit_breaker_active) {
+      cbEl.textContent = '🚨 TRIGGERED (PAUSED)';
+      cbEl.style.color = 'var(--accent-red)';
+    } else {
+      cbEl.textContent = '🟢 SECURE';
+      cbEl.style.color = 'var(--accent-green)';
+    }
+  }
+  if (clusterEl && port.cluster_counts) {
+    const activeClusters = Object.entries(port.cluster_counts).filter(([k, v]) => v > 0).length;
+    clusterEl.textContent = `${activeClusters} Active Clusters`;
+  }
+
+  // Render Bot Health Matrix Table
+  const tbody = document.getElementById('performance-bot-rows');
+  if (!tbody || !data.bots || !data.bots.length) return;
+
+  let html = '';
+  data.bots.forEach(b => {
+    const healthBadge = b.health_status === 'HEALTHY' ? '<span style="color:var(--accent-green); font-weight:700;">🟢 Healthy</span>' : (b.health_status === 'DEGRADING' ? '<span style="color:var(--accent-yellow); font-weight:700;">🟡 Degrading</span>' : '<span style="color:var(--accent-red); font-weight:700;">🔴 Paused Decay</span>');
+    const sharpeClass = b.sharpe_ratio >= 1.0 ? 'pnl-pos' : (b.sharpe_ratio < 0 ? 'pnl-neg' : '');
+
+    html += `
+      <tr>
+        <td><strong>${b.name}</strong> <small style="color:var(--text-muted);">(${b.bot_id})</small></td>
+        <td>${healthBadge}</td>
+        <td class="${sharpeClass}">${b.sharpe_ratio >= 0 ? '+' : ''}${b.sharpe_ratio.toFixed(2)}</td>
+        <td>${b.sortino_ratio >= 0 ? '+' : ''}${b.sortino_ratio.toFixed(2)}</td>
+        <td>${b.win_rate.toFixed(1)}% <small style="color:var(--text-muted);">(${b.total_trades}T)</small></td>
+        <td style="font-weight:700;">${b.profit_factor.toFixed(2)}</td>
+        <td style="color:var(--accent-cyan); font-weight:800;">$${b.allocated_stake_usd.toFixed(2)}</td>
+        <td>$${b.current_equity.toFixed(2)}</td>
+        <td style="color:${b.max_drawdown > 3 ? 'var(--accent-red)' : 'var(--text-muted)'};">${b.max_drawdown.toFixed(2)}%</td>
+        <td><span class="${b.is_active ? 'tag-buy' : 'tag-sell'}">${b.is_active ? 'ACTIVE' : 'PAUSED'}</span></td>
+      </tr>
+    `;
+  });
+  tbody.innerHTML = html;
 }

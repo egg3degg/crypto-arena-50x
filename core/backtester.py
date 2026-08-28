@@ -1,9 +1,10 @@
 """
-Fast 30-Day Historical Backtest Simulator
-Simulates any strategy on historical OHLCV data with realistic 0.075% fees and slippage.
+Fast Vectorized Historical Backtest Simulator
+Simulates strategies on historical OHLCV data with fees, slippage, and trailing stop support.
+Supports parameter sweeps for the Walk-Forward Optimization Engine.
 """
 import math
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import pandas as pd
 import numpy as np
 
@@ -20,14 +21,18 @@ class StrategyBacktester:
         self,
         strategy_type: str,
         symbol: str = "SOL/USDT",
+        df: Optional[pd.DataFrame] = None,
         initial_capital: float = 50.0,
         stake_usd: float = 25.0,
         take_profit_pct: float = 0.045,
         stop_loss_pct: float = 0.025,
+        trailing_stop_pct: Optional[float] = None,
         fee_rate: float = 0.00075
     ) -> Dict[str, Any]:
-        """Runs vectorized backtest on historical OHLCV candles."""
-        df = self.market_feed.fetch_ohlcv_dataframe(symbol)
+        """Runs vectorized backtest on historical OHLCV candles with trailing stop support."""
+        if df is None:
+            df = self.market_feed.fetch_ohlcv_dataframe(symbol)
+        
         if df is None or len(df) < 30:
             return {"error": f"Insufficient historical data for {symbol}"}
 
@@ -37,40 +42,50 @@ class StrategyBacktester:
         in_position = False
         entry_price = 0.0
         entry_time = ""
+        highest_price = 0.0
         qty = 0.0
 
         for i in range(25, len(df)):
-            sub_df = df.iloc[:i+1]
-            row = sub_df.iloc[-1]
+            row = df.iloc[i]
             price = row['close']
             ts = str(row['timestamp'])
 
             if not in_position:
-                # Check Entry Signal
+                # Entry Conditions
                 signal_buy = False
-                if strategy_type == "trend":
-                    signal_buy = (row['ema_20'] > row['ema_50']) and (row['rsi_14'] > 50) and (row['adx'] > 22)
-                elif strategy_type == "mean_revert":
-                    signal_buy = (price <= row['bb_lower']) and (row['rsi_14'] < 36)
-                elif strategy_type == "breakout":
-                    signal_buy = (price >= row['donchian_high']) and (row['vol_surge_ratio'] >= 1.6)
-                elif strategy_type == "grid":
-                    signal_buy = (price <= row['ema_20']) and (row['rsi_14'] < 48)
-                else: # Smart money / polymarket
-                    signal_buy = (row['rsi_14'] > 48) and (row['ema_20'] > row['ema_50'])
+                if strategy_type in ["trend", "alphatrend", "bot_1_alphatrend"]:
+                    signal_buy = (row.get('ema_20', 0) > row.get('ema_50', 0)) and (row.get('rsi', 50) > 50) and (row.get('adx', 20) > 20)
+                elif strategy_type in ["mean_revert", "bot_2_meanrevert"]:
+                    signal_buy = (price <= row.get('bb_lower', price)) and (row.get('rsi', 50) < 38)
+                elif strategy_type in ["breakout", "bot_3_breakouthunter"]:
+                    signal_buy = (price >= row.get('donchian_high', price * 1.05)) and (row.get('volume_surge_ratio', 1.0) >= 1.5)
+                elif strategy_type in ["grid", "bot_4_adaptivegrid"]:
+                    signal_buy = (price <= row.get('ema_20', price)) and (row.get('rsi', 50) < 48)
+                else: # Smart money / default momentum
+                    signal_buy = (row.get('rsi', 50) > 48) and (row.get('ema_9', 0) > row.get('ema_20', 0))
 
                 if signal_buy and balance >= stake_usd:
                     fee = stake_usd * fee_rate
                     balance -= stake_usd
                     qty = (stake_usd - fee) / price
                     entry_price = price
+                    highest_price = price
                     entry_time = ts
                     in_position = True
 
             else:
-                # Check Exit Condition (TP / SL)
+                if price > highest_price:
+                    highest_price = price
+
+                # Check Exit Condition (TP, SL, Trailing SL)
                 pnl_pct = (price - entry_price) / entry_price
-                if pnl_pct >= take_profit_pct or pnl_pct <= -stop_loss_pct:
+                trailing_hit = False
+                if trailing_stop_pct and trailing_stop_pct > 0:
+                    trail_drop = (highest_price - price) / highest_price
+                    if trail_drop >= trailing_stop_pct and pnl_pct > 0.005:
+                        trailing_hit = True
+
+                if pnl_pct >= take_profit_pct or pnl_pct <= -stop_loss_pct or trailing_hit:
                     proceeds = qty * price
                     fee = proceeds * fee_rate
                     net_proceeds = proceeds - fee
@@ -91,7 +106,7 @@ class StrategyBacktester:
             current_eq = balance + (qty * price if in_position else 0.0)
             equity_curve.append({"timestamp": ts, "equity": round(current_eq, 2)})
 
-        # Aggregate Metrics
+        # Aggregate Performance Metrics
         total_trades = len(trades)
         wins = [t for t in trades if t['is_win']]
         win_rate = (len(wins) / total_trades * 100.0) if total_trades > 0 else 0.0
@@ -113,6 +128,16 @@ class StrategyBacktester:
             dd = ((peak - eq) / peak) * 100.0
             if dd > max_dd: max_dd = dd
 
+        # Sharpe Ratio Calculation
+        if len(trades) >= 2:
+            pnls = [t['pnl'] for t in trades]
+            mean_p = sum(pnls) / len(pnls)
+            var_p = sum((p - mean_p) ** 2 for p in pnls) / len(pnls)
+            std_p = math.sqrt(var_p) if var_p > 0 else 0.0001
+            sharpe = (mean_p / std_p) * math.sqrt(len(trades))
+        else:
+            sharpe = 0.0
+
         return {
             "symbol": symbol,
             "strategy": strategy_type,
@@ -124,6 +149,7 @@ class StrategyBacktester:
             "win_rate": round(win_rate, 1),
             "profit_factor": round(profit_factor, 2),
             "max_drawdown": round(max_dd, 2),
-            "trades": trades[-15:], # Last 15 trades preview
-            "equity_curve": equity_curve[-40:] # Sample curve
+            "sharpe_ratio": round(sharpe, 2),
+            "trades": trades[-15:],
+            "equity_curve": equity_curve[-40:]
         }
