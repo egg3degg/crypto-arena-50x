@@ -40,13 +40,24 @@ class MeanRevertStrategy(BaseStrategy):
 
         # 1. Check Exit for Open Positions (Target reached mid-band or RSI normalized)
         if matching_positions:
-            if latest['close'] >= latest['bb_mid'] or latest['rsi'] >= self.params['rsi_exit']:
-                return StrategyDecision(
-                    action=Signal.SELL,
-                    symbol=symbol,
-                    reason=f"MeanRevert Exit: Price returned to mean (BB Mid: ${latest['bb_mid']:.2f}, RSI: {latest['rsi']:.1f})",
-                    confidence=0.88
-                )
+            for pos in matching_positions:
+                is_short = (pos.get('side') == 'SHORT')
+                if is_short:
+                    if latest['close'] <= latest['bb_mid'] or latest['rsi'] <= 40.0:
+                        return StrategyDecision(
+                            action=Signal.COVER,
+                            symbol=symbol,
+                            reason=f"MeanRevert Short TP: Price returned to mean (BB Mid: ${latest['bb_mid']:.2f}, RSI: {latest['rsi']:.1f})",
+                            confidence=0.88
+                        )
+                else:
+                    if latest['close'] >= latest['bb_mid'] or latest['rsi'] >= self.params['rsi_exit']:
+                        return StrategyDecision(
+                            action=Signal.SELL,
+                            symbol=symbol,
+                            reason=f"MeanRevert Long TP: Price returned to mean (BB Mid: ${latest['bb_mid']:.2f}, RSI: {latest['rsi']:.1f})",
+                            confidence=0.88
+                        )
             return StrategyDecision(Signal.HOLD, symbol, reason="MeanRevert: Waiting for mean bounce")
 
         # 2. Check Entry Signal
@@ -54,14 +65,10 @@ class MeanRevertStrategy(BaseStrategy):
         if available_balance < 10.0 or stake < 10.0:
             return StrategyDecision(Signal.HOLD, symbol, reason="Insufficient balance for minimum stake")
 
-        # Entry Criteria:
-        # 1. Price at or below lower Bollinger Band (%B < threshold)
-        # 2. RSI oversold (< rsi_oversold)
-        # 3. Stochastic %K turning upward or %K < 25
-        # 4. ADX < 35 (Ensures market is ranging / oscillating, not in a catastrophic freefall)
+        # --- A. Oversold Dip Entry (LONG) ---
         is_bb_oversold = latest['bb_pct_b'] <= self.params['bb_pct_b_entry'] or latest['low'] <= latest['bb_lower']
         is_rsi_oversold = latest['rsi'] <= self.params['rsi_oversold']
-        is_stoch_turning = latest['stoch_k'] < self.params['stoch_oversold'] or (latest['stoch_k'] > prev['stoch_k'] and prev['stoch_k'] < 30)
+        is_stoch_turning = latest['stoch_k'] < self.params['stoch_oversold'] or (latest['stoch_k'] > prev['stoch_k'] and prev['stoch_k'] < 35)
         is_not_crash = latest['adx'] < 38.0
 
         if is_bb_oversold and is_rsi_oversold and is_stoch_turning and is_not_crash:
@@ -70,12 +77,33 @@ class MeanRevertStrategy(BaseStrategy):
                 action=Signal.BUY,
                 symbol=symbol,
                 stake_usd=stake,
+                side="LONG",
                 stop_loss_pct=self.params['stop_loss_pct'],
                 take_profit_pct=self.params['take_profit_pct'],
                 trailing_stop_pct=self.params['trailing_stop_pct'],
                 reason=f"MeanRevert Dip Setup (RSI: {latest['rsi']:.1f}, BB %B: {latest['bb_pct_b']:.2f})",
                 confidence=confidence,
                 metadata={'rsi': latest['rsi'], 'bb_lower': latest['bb_lower']}
+            )
+
+        # --- B. Overbought Top Fade Entry (SHORT) ---
+        is_bb_overbought = latest['bb_pct_b'] >= 0.80 or latest['high'] >= latest['bb_upper']
+        is_rsi_overbought = latest['rsi'] >= 62.0
+        is_stoch_topping = latest['stoch_k'] > 70.0 or (latest['stoch_k'] < prev['stoch_k'] and prev['stoch_k'] > 65)
+
+        if is_bb_overbought and is_rsi_overbought and is_stoch_topping and is_not_crash:
+            confidence = min(0.92, 0.65 + ((latest['rsi'] - 60.0) / 100.0))
+            return StrategyDecision(
+                action=Signal.SHORT,
+                symbol=symbol,
+                stake_usd=stake,
+                side="SHORT",
+                stop_loss_pct=self.params['stop_loss_pct'],
+                take_profit_pct=self.params['take_profit_pct'],
+                trailing_stop_pct=self.params['trailing_stop_pct'],
+                reason=f"MeanRevert Overbought Fade (RSI: {latest['rsi']:.1f}, BB %B: {latest['bb_pct_b']:.2f})",
+                confidence=confidence,
+                metadata={'rsi': latest['rsi'], 'bb_upper': latest['bb_upper']}
             )
 
         return StrategyDecision(Signal.HOLD, symbol, reason="No mean-reversion setup detected")

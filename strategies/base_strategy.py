@@ -8,20 +8,24 @@ import pandas as pd
 class Signal:
     BUY = "BUY"
     SELL = "SELL"
+    SHORT = "SHORT"
+    COVER = "COVER"
     HOLD = "HOLD"
 
 class StrategyDecision:
     def __init__(self, action: str, symbol: str = "",
                  stake_usd: float = 25.0,
+                 side: str = "LONG",
                  stop_loss_pct: Optional[float] = None,
                  take_profit_pct: Optional[float] = None,
                  trailing_stop_pct: Optional[float] = None,
                  reason: str = "",
                  confidence: float = 0.0,
                  metadata: Optional[Dict[str, Any]] = None):
-        self.action = action  # "BUY", "SELL", "HOLD"
+        self.action = action  # "BUY", "SELL", "SHORT", "COVER", "HOLD"
         self.symbol = symbol
         self.stake_usd = stake_usd
+        self.side = side if action != Signal.SHORT else "SHORT"
         self.stop_loss_pct = stop_loss_pct
         self.take_profit_pct = take_profit_pct
         self.trailing_stop_pct = trailing_stop_pct

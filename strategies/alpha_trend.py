@@ -42,41 +42,70 @@ class AlphaTrendStrategy(BaseStrategy):
 
         # 1. Check Exit Signal for Open Positions
         if matching_positions:
-            # Bearish crossover or extreme overbought RSI
-            if (latest['ema_20'] < latest['ema_50'] and prev['ema_20'] >= prev['ema_50']) or latest['rsi'] > 80:
-                return StrategyDecision(
-                    action=Signal.SELL,
-                    symbol=symbol,
-                    reason=f"AlphaTrend Exit: EMA Bearish Cross or Overbought RSI ({latest['rsi']:.1f})",
-                    confidence=0.85
-                )
-            return StrategyDecision(Signal.HOLD, symbol, reason="AlphaTrend: Riding active trend")
+            for pos in matching_positions:
+                is_short = (pos.get('side') == 'SHORT')
+                if is_short:
+                    # Exit Short on Bullish Crossover or deeply oversold RSI
+                    if (latest['ema_20'] > latest['ema_50'] and prev['ema_20'] <= prev['ema_50']) or latest['rsi'] < 22:
+                        return StrategyDecision(
+                            action=Signal.COVER,
+                            symbol=symbol,
+                            reason=f"AlphaTrend Short Exit: Bullish Cross or Oversold RSI ({latest['rsi']:.1f})",
+                            confidence=0.85
+                        )
+                else:
+                    # Exit Long on Bearish Crossover or extreme overbought RSI
+                    if (latest['ema_20'] < latest['ema_50'] and prev['ema_20'] >= prev['ema_50']) or latest['rsi'] > 78:
+                        return StrategyDecision(
+                            action=Signal.SELL,
+                            symbol=symbol,
+                            reason=f"AlphaTrend Long Exit: Bearish Cross or Overbought RSI ({latest['rsi']:.1f})",
+                            confidence=0.85
+                        )
+            return StrategyDecision(Signal.HOLD, symbol, reason="AlphaTrend: Riding active trend position")
 
         # 2. Check Entry Signal (Only if capital is available)
         stake = min(self.params['stake_usd'], available_balance)
         if available_balance < 10.0 or stake < 10.0:
             return StrategyDecision(Signal.HOLD, symbol, reason="Insufficient balance for minimum stake")
 
-        # Entry Conditions:
-        # 1. Price > EMA 50 and EMA 20 > EMA 50
-        # 2. Strong trend: ADX > adx_threshold
-        # 3. Healthy RSI momentum (not exhausted)
-        # 4. Bullish candle close > EMA 20
+        # --- A. Bullish Trend Entry (LONG) ---
         is_uptrend = latest['close'] > latest['ema_50'] and latest['ema_20'] > latest['ema_50']
         is_strong_trend = latest['adx'] >= self.params['adx_threshold']
-        is_rsi_valid = self.params['rsi_min'] <= latest['rsi'] <= self.params['rsi_max']
+        is_rsi_valid_long = self.params['rsi_min'] <= latest['rsi'] <= self.params['rsi_max']
         is_bullish_trigger = latest['close'] > latest['ema_20'] and prev['close'] <= prev['ema_20']
 
-        if is_uptrend and is_strong_trend and is_rsi_valid and (is_bullish_trigger or latest['close'] > latest['ema_9']):
+        if is_uptrend and is_strong_trend and is_rsi_valid_long and (is_bullish_trigger or latest['close'] > latest['ema_9']):
             confidence = min(0.95, 0.60 + (latest['adx'] / 100.0) + (0.1 if latest['close'] > latest['ema_200'] else 0.0))
             return StrategyDecision(
                 action=Signal.BUY,
                 symbol=symbol,
                 stake_usd=stake,
+                side="LONG",
                 stop_loss_pct=self.params['stop_loss_pct'],
                 take_profit_pct=self.params['take_profit_pct'],
                 trailing_stop_pct=self.params['trailing_stop_pct'],
-                reason=f"AlphaTrend Bullish Setup (ADX: {latest['adx']:.1f}, RSI: {latest['rsi']:.1f})",
+                reason=f"AlphaTrend Bullish Momentum (ADX: {latest['adx']:.1f}, RSI: {latest['rsi']:.1f})",
+                confidence=confidence,
+                metadata={'adx': latest['adx'], 'rsi': latest['rsi']}
+            )
+
+        # --- B. Bearish Trend Entry (SHORT) ---
+        is_downtrend = latest['close'] < latest['ema_50'] and latest['ema_20'] < latest['ema_50']
+        is_rsi_valid_short = 28.0 <= latest['rsi'] <= 58.0
+        is_bearish_trigger = latest['close'] < latest['ema_20'] and prev['close'] >= prev['ema_20']
+
+        if is_downtrend and is_strong_trend and is_rsi_valid_short and (is_bearish_trigger or latest['close'] < latest['ema_9']):
+            confidence = min(0.95, 0.60 + (latest['adx'] / 100.0))
+            return StrategyDecision(
+                action=Signal.SHORT,
+                symbol=symbol,
+                stake_usd=stake,
+                side="SHORT",
+                stop_loss_pct=self.params['stop_loss_pct'],
+                take_profit_pct=self.params['take_profit_pct'],
+                trailing_stop_pct=self.params['trailing_stop_pct'],
+                reason=f"AlphaTrend Bearish Breakdown (ADX: {latest['adx']:.1f}, RSI: {latest['rsi']:.1f})",
                 confidence=confidence,
                 metadata={'adx': latest['adx'], 'rsi': latest['rsi']}
             )

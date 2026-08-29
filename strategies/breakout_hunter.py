@@ -37,28 +37,37 @@ class BreakoutHunterStrategy(BaseStrategy):
 
         matching_positions = [p for p in open_positions if p['symbol'] == symbol]
 
-        # 1. Check Exit for Open Positions (Breakout failure or breakdown below Donchian mid)
+        # 1. Check Exit for Open Positions (Breakout failure or cross of Donchian mid)
         if matching_positions:
-            if latest['close'] < latest['donchian_mid']:
-                return StrategyDecision(
-                    action=Signal.SELL,
-                    symbol=symbol,
-                    reason=f"BreakoutHunter Exit: Price lost Donchian Mid (${latest['donchian_mid']:.2f})",
-                    confidence=0.82
-                )
-            return StrategyDecision(Signal.HOLD, symbol, reason="BreakoutHunter: Holding breakout rally")
+            for pos in matching_positions:
+                is_short = (pos.get('side') == 'SHORT')
+                if is_short:
+                    if latest['close'] > latest['donchian_mid']:
+                        return StrategyDecision(
+                            action=Signal.COVER,
+                            symbol=symbol,
+                            reason=f"BreakoutHunter Short TP: Price reclaimed Donchian Mid (${latest['donchian_mid']:.2f})",
+                            confidence=0.82
+                        )
+                else:
+                    if latest['close'] < latest['donchian_mid']:
+                        return StrategyDecision(
+                            action=Signal.SELL,
+                            symbol=symbol,
+                            reason=f"BreakoutHunter Long Exit: Price lost Donchian Mid (${latest['donchian_mid']:.2f})",
+                            confidence=0.82
+                        )
+            return StrategyDecision(Signal.HOLD, symbol, reason="BreakoutHunter: Holding breakout position")
 
         # 2. Check Entry Signal
         stake = min(self.params['stake_usd'], available_balance)
         if available_balance < 10.0 or stake < 10.0:
             return StrategyDecision(Signal.HOLD, symbol, reason="Insufficient balance for minimum stake")
 
-        # Entry Criteria:
-        # 1. Current High/Close >= Prev Donchian High (New 20-period High breakout)
-        # 2. Volume Surge > volume_surge_multiplier
-        # 3. RSI > 52 (Positive upward push)
-        is_breakout = latest['close'] >= prev['donchian_high'] or latest['high'] >= prev['donchian_high']
         is_volume_surge = latest['volume_surge_ratio'] >= self.params['volume_surge_multiplier']
+
+        # --- A. Bullish Channel Breakout (LONG) ---
+        is_breakout = latest['close'] >= prev['donchian_high'] or latest['high'] >= prev['donchian_high']
         is_rsi_strong = latest['rsi'] >= self.params['rsi_breakout_min'] and latest['rsi'] < 82.0
 
         if is_breakout and is_volume_surge and is_rsi_strong:
@@ -67,12 +76,32 @@ class BreakoutHunterStrategy(BaseStrategy):
                 action=Signal.BUY,
                 symbol=symbol,
                 stake_usd=stake,
+                side="LONG",
                 stop_loss_pct=self.params['stop_loss_pct'],
                 take_profit_pct=self.params['take_profit_pct'],
                 trailing_stop_pct=self.params['trailing_stop_pct'],
-                reason=f"BreakoutHunter Surge Setup (Vol Ratio: {latest['volume_surge_ratio']:.2f}x, 20-High Breakout)",
+                reason=f"BreakoutHunter High Breakout (Vol: {latest['volume_surge_ratio']:.2f}x)",
                 confidence=confidence,
                 metadata={'vol_ratio': latest['volume_surge_ratio'], 'donchian_high': prev['donchian_high']}
+            )
+
+        # --- B. Bearish Channel Breakdown (SHORT) ---
+        is_breakdown = latest['close'] <= prev['donchian_low'] or latest['low'] <= prev['donchian_low']
+        is_rsi_weak = latest['rsi'] <= (100.0 - self.params['rsi_breakout_min']) and latest['rsi'] > 18.0
+
+        if is_breakdown and is_volume_surge and is_rsi_weak:
+            confidence = min(0.96, 0.70 + (latest['volume_surge_ratio'] / 10.0))
+            return StrategyDecision(
+                action=Signal.SHORT,
+                symbol=symbol,
+                stake_usd=stake,
+                side="SHORT",
+                stop_loss_pct=self.params['stop_loss_pct'],
+                take_profit_pct=self.params['take_profit_pct'],
+                trailing_stop_pct=self.params['trailing_stop_pct'],
+                reason=f"BreakoutHunter Low Breakdown (Vol: {latest['volume_surge_ratio']:.2f}x)",
+                confidence=confidence,
+                metadata={'vol_ratio': latest['volume_surge_ratio'], 'donchian_low': prev['donchian_low']}
             )
 
         return StrategyDecision(Signal.HOLD, symbol, reason="No volume-backed breakout")

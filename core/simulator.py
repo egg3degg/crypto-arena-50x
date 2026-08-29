@@ -79,23 +79,24 @@ class PaperWallet:
         return True, "OK"
 
     def execute_buy(self, symbol: str, price: float, usd_amount: float,
+                    side: str = "LONG",
                     stop_loss_pct: Optional[float] = None,
                     take_profit_pct: Optional[float] = None,
                     trailing_stop_pct: Optional[float] = None,
                     atr: Optional[float] = None,
                     reason: str = "SIGNAL") -> Optional[Dict[str, Any]]:
-        """Executes a simulated BUY order with optional volatility-adjusted position sizing."""
-        # Calculate dynamic volatility sizing if ATR is provided
+        """Executes a simulated order (LONG or SHORT) with volatility-adjusted position sizing."""
         if atr and atr > 0:
             usd_amount = self.calculate_volatility_adjusted_stake(price=price, atr=atr, base_stake=usd_amount)
 
         can_buy, msg = self.can_open_position(usd_amount)
         if not can_buy:
-            logger.warning(f"[{self.bot_id}] BUY rejected for {symbol}: {msg}")
+            logger.warning(f"[{self.bot_id}] Order rejected for {symbol}: {msg}")
             return None
 
-        # Apply slippage on entry (buy slightly higher)
-        execution_price = price * (1 + self.slippage_rate)
+        # Apply slippage on entry
+        slippage_mult = (1 + self.slippage_rate) if side == "LONG" else (1 - self.slippage_rate)
+        execution_price = price * slippage_mult
         fee = usd_amount * self.fee_rate
         net_usd = usd_amount - fee
         quantity = net_usd / execution_price
@@ -105,14 +106,18 @@ class PaperWallet:
         position_id = str(uuid.uuid4())[:8]
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        stop_loss_price = execution_price * (1 - stop_loss_pct) if stop_loss_pct else None
-        take_profit_price = execution_price * (1 + take_profit_pct) if take_profit_pct else None
+        if side == "SHORT":
+            stop_loss_price = execution_price * (1 + stop_loss_pct) if stop_loss_pct else None
+            take_profit_price = execution_price * (1 - take_profit_pct) if take_profit_pct else None
+        else:
+            stop_loss_price = execution_price * (1 - stop_loss_pct) if stop_loss_pct else None
+            take_profit_price = execution_price * (1 + take_profit_pct) if take_profit_pct else None
 
         position = {
             'position_id': position_id,
             'bot_id': self.bot_id,
             'symbol': symbol,
-            'side': 'LONG',
+            'side': side,
             'entry_price': execution_price,
             'current_price': execution_price,
             'quantity': quantity,
@@ -121,6 +126,7 @@ class PaperWallet:
             'take_profit': take_profit_price,
             'trailing_stop_pct': trailing_stop_pct,
             'highest_price': execution_price,
+            'lowest_price': execution_price,
             'unrealized_pnl': 0.0,
             'unrealized_pnl_pct': 0.0,
             'status': 'OPEN',
@@ -130,14 +136,14 @@ class PaperWallet:
 
         self.db.save_position(position)
 
-        # Record Buy Trade
+        # Record Trade
         trade_id = str(uuid.uuid4())[:8]
         trade = {
             'trade_id': trade_id,
             'bot_id': self.bot_id,
             'position_id': position_id,
             'symbol': symbol,
-            'side': 'BUY',
+            'side': 'BUY' if side == 'LONG' else 'SHORT',
             'price': execution_price,
             'quantity': quantity,
             'cost_or_proceeds': usd_amount,
@@ -150,31 +156,40 @@ class PaperWallet:
         self.db.record_trade(trade)
         self._update_and_persist_stats()
 
-        logger.info(f"[{self.bot_id}] BUY EXECUTED: {quantity:.4f} {symbol} @ ${execution_price:.2f} (Cost: ${usd_amount:.2f}, Fee: ${fee:.4f})")
+        logger.info(f"[{self.bot_id}] {side} EXECUTED: {quantity:.4f} {symbol} @ ${execution_price:.2f} (Cost: ${usd_amount:.2f}, Fee: ${fee:.4f})")
         return position
 
     def execute_sell(self, position_id: str, current_price: float, reason: str = "SIGNAL") -> Optional[Dict[str, Any]]:
-        """Closes an open position, realizes PnL, deducts fees, and credits capital."""
+        """Closes an open position (LONG or SHORT), realizes PnL, deducts fees, and credits capital."""
         with self.db._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM positions WHERE position_id = ? AND status = 'OPEN'", (position_id,))
             row = cursor.fetchone()
             if not row:
-                logger.warning(f"[{self.bot_id}] Cannot sell: Position {position_id} not found or already closed.")
+                logger.warning(f"[{self.bot_id}] Cannot close: Position {position_id} not found or already closed.")
                 return None
             pos = dict(row)
 
-        # Apply slippage on exit (sell slightly lower)
-        execution_price = current_price * (1 - self.slippage_rate)
-        gross_proceeds = pos['quantity'] * execution_price
-        fee = gross_proceeds * self.fee_rate
-        net_proceeds = gross_proceeds - fee
+        is_short = (pos.get('side') == 'SHORT')
+        slippage_mult = (1 + self.slippage_rate) if is_short else (1 - self.slippage_rate)
+        execution_price = current_price * slippage_mult
 
-        realized_pnl = net_proceeds - pos['cost_basis']
+        if is_short:
+            price_delta = pos['entry_price'] - execution_price
+            gross_pnl = price_delta * pos['quantity']
+            fee = (pos['quantity'] * execution_price) * self.fee_rate
+            realized_pnl = gross_pnl - fee
+            net_proceeds = pos['cost_basis'] + realized_pnl
+        else:
+            gross_proceeds = pos['quantity'] * execution_price
+            fee = gross_proceeds * self.fee_rate
+            net_proceeds = gross_proceeds - fee
+            realized_pnl = net_proceeds - pos['cost_basis']
+
         realized_pnl_pct = (realized_pnl / pos['cost_basis']) * 100.0
 
         # Update Balances
-        self.available_balance += net_proceeds
+        self.available_balance += max(0.0, net_proceeds)
         self.current_balance += realized_pnl
         self.total_pnl += realized_pnl
         self.total_trades += 1
@@ -193,14 +208,14 @@ class PaperWallet:
         pos['closed_at'] = now_iso
         self.db.save_position(pos)
 
-        # Record Sell Trade
+        # Record Close Trade
         trade_id = str(uuid.uuid4())[:8]
         trade = {
             'trade_id': trade_id,
             'bot_id': self.bot_id,
             'position_id': position_id,
             'symbol': pos['symbol'],
-            'side': 'SELL',
+            'side': 'COVER' if is_short else 'SELL',
             'price': execution_price,
             'quantity': pos['quantity'],
             'cost_or_proceeds': net_proceeds,
@@ -213,11 +228,11 @@ class PaperWallet:
         self.db.record_trade(trade)
         self._update_and_persist_stats()
 
-        logger.info(f"[{self.bot_id}] SELL EXECUTED ({reason}): {pos['quantity']:.4f} {pos['symbol']} @ ${execution_price:.2f} | PnL: ${realized_pnl:+.2f} ({realized_pnl_pct:+.2f}%)")
+        logger.info(f"[{self.bot_id}] {'COVER' if is_short else 'SELL'} EXECUTED ({reason}): {pos['quantity']:.4f} {pos['symbol']} @ ${execution_price:.2f} | PnL: ${realized_pnl:+.2f} ({realized_pnl_pct:+.2f}%)")
         return trade
 
     def update_open_positions_market_price(self, symbol: str, current_price: float):
-        """Updates unrealized PnL and triggers automated Stop-Loss / Take-Profit / Trailing-Stop."""
+        """Updates unrealized PnL and triggers multi-stage TP, Breakeven SL, and Trailing-Stop."""
         open_positions = [p for p in self.get_open_positions() if p['symbol'] == symbol]
 
         for pos in open_positions:
@@ -225,36 +240,59 @@ class PaperWallet:
             entry_price = pos['entry_price']
             quantity = pos['quantity']
             cost_basis = pos['cost_basis']
+            is_short = (pos.get('side') == 'SHORT')
 
-            # Update highest price reached for trailing stop
-            highest_price = max(pos.get('highest_price') or entry_price, current_price)
-            pos['highest_price'] = highest_price
+            exit_fee_est = (quantity * current_price) * self.fee_rate
+            if is_short:
+                lowest_price = min(pos.get('lowest_price') or entry_price, current_price)
+                pos['lowest_price'] = lowest_price
+                price_delta = entry_price - current_price
+                unrealized_pnl = (price_delta * quantity) - exit_fee_est
+            else:
+                highest_price = max(pos.get('highest_price') or entry_price, current_price)
+                pos['highest_price'] = highest_price
+                gross_val = quantity * current_price
+                unrealized_pnl = (gross_val - exit_fee_est) - cost_basis
 
-            gross_value = quantity * current_price
-            exit_fee_est = gross_value * self.fee_rate
-            unrealized_pnl = (gross_value - exit_fee_est) - cost_basis
             unrealized_pnl_pct = (unrealized_pnl / cost_basis) * 100.0
-
             pos['current_price'] = current_price
             pos['unrealized_pnl'] = unrealized_pnl
             pos['unrealized_pnl_pct'] = unrealized_pnl_pct
 
-            # 1. Check Take Profit Trigger
-            if pos.get('take_profit') and current_price >= pos['take_profit']:
-                self.execute_sell(pos_id, current_price, reason="TAKE_PROFIT")
-                continue
+            # 1. Multi-Stage Profit: Move Stop-Loss to Breakeven once in profit (+1.2%)
+            if unrealized_pnl_pct >= 1.2 and not pos.get('breakeven_set'):
+                pos['breakeven_set'] = 1
+                if is_short:
+                    pos['stop_loss'] = min(pos.get('stop_loss') or 999999, entry_price * 0.999)
+                else:
+                    pos['stop_loss'] = max(pos.get('stop_loss') or 0, entry_price * 1.001)
 
-            # 2. Check Stop Loss Trigger
-            if pos.get('stop_loss') and current_price <= pos['stop_loss']:
-                self.execute_sell(pos_id, current_price, reason="STOP_LOSS")
-                continue
-
-            # 3. Check Trailing Stop Trigger
-            if pos.get('trailing_stop_pct'):
-                trailing_stop_price = highest_price * (1 - pos['trailing_stop_pct'])
-                if current_price <= trailing_stop_price and current_price > entry_price:
-                    self.execute_sell(pos_id, current_price, reason="TRAILING_STOP")
+            # 2. Check Take Profit Trigger
+            if pos.get('take_profit'):
+                tp_hit = (current_price <= pos['take_profit']) if is_short else (current_price >= pos['take_profit'])
+                if tp_hit:
+                    self.execute_sell(pos_id, current_price, reason="TAKE_PROFIT")
                     continue
+
+            # 3. Check Stop Loss Trigger
+            if pos.get('stop_loss'):
+                sl_hit = (current_price >= pos['stop_loss']) if is_short else (current_price <= pos['stop_loss'])
+                if sl_hit:
+                    self.execute_sell(pos_id, current_price, reason="STOP_LOSS")
+                    continue
+
+            # 4. Check Trailing Stop Trigger
+            if pos.get('trailing_stop_pct'):
+                if is_short:
+                    trailing_stop_price = (pos.get('lowest_price') or entry_price) * (1 + pos['trailing_stop_pct'])
+                    if current_price >= trailing_stop_price and current_price < entry_price:
+                        self.execute_sell(pos_id, current_price, reason="TRAILING_STOP")
+                        continue
+                else:
+                    trailing_stop_price = (pos.get('highest_price') or entry_price) * (1 - pos['trailing_stop_pct'])
+                    if current_price <= trailing_stop_price and current_price > entry_price:
+                        self.execute_sell(pos_id, current_price, reason="TRAILING_STOP")
+                        continue
 
             # Save updated position state
             self.db.save_position(pos)

@@ -372,7 +372,8 @@ class TournamentEngine:
                         available_balance=avail_balance
                     )
 
-                if decision.action == Signal.BUY:
+                if decision.action in [Signal.BUY, Signal.SHORT]:
+                    order_side = "SHORT" if decision.action == Signal.SHORT else "LONG"
                     # 1. Dynamic Capital Allocation Check
                     allocated_stake = self.capital_allocator.get_bot_stake(bot_id)
                     effective_stake = min(decision.stake_usd, allocated_stake)
@@ -385,7 +386,7 @@ class TournamentEngine:
                         wallets=self.wallets
                     )
                     if not can_trade:
-                        logger.info(f"[{bot_id}] BUY blocked by Risk Manager for {symbol}: {risk_msg}")
+                        logger.info(f"[{bot_id}] {order_side} blocked by Risk Manager for {symbol}: {risk_msg}")
                         continue
 
                     # 3. Volatility Sizing via ATR
@@ -399,6 +400,7 @@ class TournamentEngine:
                         symbol=symbol,
                         price=ticker['price'],
                         usd_amount=effective_stake,
+                        side=order_side,
                         stop_loss_pct=decision.stop_loss_pct,
                         take_profit_pct=decision.take_profit_pct,
                         trailing_stop_pct=decision.trailing_stop_pct,
@@ -409,14 +411,14 @@ class TournamentEngine:
                         await self.notifier.notify_trade(
                             bot_name=strategy.name,
                             symbol=symbol,
-                            side="BUY",
+                            side=order_side,
                             price=pos['entry_price'],
                             quantity=pos['quantity'],
                             reason=decision.reason
                         )
                         avail_balance = wallet.available_balance
 
-                elif decision.action == Signal.SELL:
+                elif decision.action in [Signal.SELL, Signal.COVER]:
                     matching = [p for p in open_positions if p['symbol'] == symbol]
                     for p in matching:
                         trade = wallet.execute_sell(
@@ -428,7 +430,7 @@ class TournamentEngine:
                             await self.notifier.notify_trade(
                                 bot_name=strategy.name,
                                 symbol=symbol,
-                                side="SELL",
+                                side=trade['side'],
                                 price=trade['price'],
                                 quantity=trade['quantity'],
                                 pnl=trade['realized_pnl'],
