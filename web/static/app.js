@@ -57,7 +57,7 @@ function getBotCategory(botId) {
   return 'OTHER';
 }
 
-const ARENA_API_KEY = 'arena-secret-key-2026';
+const ARENA_API_KEY = new URLSearchParams(window.location.search).get('api_key') || localStorage.getItem('arena_api_key') || 'arena-secret-key-2026';
 let wsInstance = null;
 
 async function apiPost(url, body = {}) {

@@ -60,7 +60,7 @@ ALLOWED_ORIGINS = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"https://.*\.trycloudflare\.com|https://.*\.onrender\.com|https://.*\.vercel\.app|http://.*",
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|8\.234\.126\.146|.*\.trycloudflare\.com|.*\.onrender\.com|.*\.vercel\.app)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
