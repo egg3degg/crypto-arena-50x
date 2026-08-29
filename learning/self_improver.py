@@ -13,18 +13,48 @@ try:
     from core.database import ArenaDatabase
     from core.backtester import StrategyBacktester
     from strategies.base_strategy import BaseStrategy
+    from research.indian_market_feed import IndianAndCommodityFeed
 except (ImportError, ValueError):
     from ..core.database import ArenaDatabase
     from ..core.backtester import StrategyBacktester
     from ..strategies.base_strategy import BaseStrategy
+    from ..research.indian_market_feed import IndianAndCommodityFeed
 
 logger = logging.getLogger("CryptoArena.WalkForwardImprover")
 
+# Asset & Benchmark Mapping per Bot
+BOT_SYMBOL_MAPPING = {
+    'bot_1_alphatrend': 'SOL/USDT',
+    'bot_2_meanrevert': 'SOL/USDT',
+    'bot_3_breakouthunter': 'SOL/USDT',
+    'bot_4_adaptivegrid': 'ETH/USDT',
+    'bot_5_smartmoney': 'SOL/USDT',
+    'bot_6_polypredictor': 'BTC/USDT',
+    'bot_7_bharatbreakout': 'RELIANCE',
+    'bot_8_desimeanrevert': 'TATAMOTORS',
+    'bot_9_hypergoldsilver': 'GOLD/USD',
+    'bot_10_polywhalecopy': 'SOL/USDT',
+    'bot_11_polyleaderwhale': 'BTC/USDT',
+    'bot_12_polymicrobot': 'SOL/USDT',
+}
+
 class SelfImprovementEngine:
-    def __init__(self, db: ArenaDatabase, strategies: Dict[str, BaseStrategy], backtester: Optional[StrategyBacktester] = None):
+    def __init__(
+        self,
+        db: ArenaDatabase,
+        strategies: Dict[str, BaseStrategy],
+        backtester: Optional[StrategyBacktester] = None,
+        indian_feed: Optional[Any] = None
+    ):
         self.db = db
         self.strategies = strategies
         self.backtester = backtester
+        self.indian_feed = indian_feed
+        if self.indian_feed is None:
+            try:
+                self.indian_feed = IndianAndCommodityFeed()
+            except Exception:
+                self.indian_feed = None
         self.last_opt_time = 0
 
         # Parameter Search Grid
@@ -34,6 +64,32 @@ class SelfImprovementEngine:
             'trailing_stop_pct': [0.0, 0.01, 0.015, 0.02]
         }
 
+    def _fetch_df_for_symbol(self, symbol: str) -> Optional[pd.DataFrame]:
+        """Fetches OHLCV dataframe from appropriate market feed with technical indicators."""
+        if symbol in ["RELIANCE", "TATAMOTORS", "NIFTY50", "HDFCBANK", "GOLD/USD", "SILVER/USD"]:
+            if self.indian_feed:
+                df = self.indian_feed.fetch_ohlcv_dataframe(symbol)
+            elif self.backtester and hasattr(self.backtester, 'market_feed'):
+                df = self.backtester.market_feed.fetch_ohlcv_dataframe(symbol)
+            else:
+                df = None
+        else:
+            if self.backtester and hasattr(self.backtester, 'market_feed'):
+                df = self.backtester.market_feed.fetch_ohlcv_dataframe(symbol)
+            else:
+                df = None
+
+        if df is not None and len(df) > 0:
+            # Ensure standard indicator aliases exist
+            if 'rsi_14' in df.columns and 'rsi' not in df.columns:
+                df['rsi'] = df['rsi_14']
+            if 'donchian_high' not in df.columns and 'high' in df.columns:
+                df['donchian_high'] = df['high'].rolling(window=20).max()
+            if 'volume_surge_ratio' not in df.columns and 'volume' in df.columns:
+                vol_mean = df['volume'].rolling(window=20).mean().replace(0, 1)
+                df['volume_surge_ratio'] = df['volume'] / vol_mean
+        return df
+
     def evaluate_and_optimize(self, market_overview: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Executes walk-forward parameter sweep and out-of-sample validation across active bots."""
         if not self.backtester:
@@ -42,19 +98,6 @@ class SelfImprovementEngine:
 
         adjustments = []
         bots = self.db.get_all_bots()
-
-        # Primary benchmark symbol for crypto strategies
-        benchmark_symbol = "SOL/USDT"
-        df = self.backtester.market_feed.fetch_ohlcv_dataframe(benchmark_symbol)
-
-        if df is None or len(df) < 50:
-            logger.warning(f"Insufficient OHLCV data ({len(df) if df is not None else 0} candles) for Walk-Forward optimization.")
-            return []
-
-        # Split into 75% in-sample (train) and 25% out-of-sample (test/validation)
-        split_idx = int(len(df) * 0.75)
-        train_df = df.iloc[:split_idx].copy()
-        val_df = df.iloc[split_idx:].copy()
 
         for bot in bots:
             bot_id = bot['bot_id']
@@ -67,6 +110,19 @@ class SelfImprovementEngine:
             old_sl = strategy.params.get('stop_loss_pct', 0.025)
             old_trail = strategy.params.get('trailing_stop_pct', 0.0)
 
+            # Map bot to its actual traded asset class & symbol
+            bot_symbol = BOT_SYMBOL_MAPPING.get(bot_id, "SOL/USDT")
+            df = self._fetch_df_for_symbol(bot_symbol)
+
+            if df is None or len(df) < 30:
+                logger.warning(f"Insufficient OHLCV data ({len(df) if df is not None else 0} candles) for Walk-Forward on {bot_id} ({bot_symbol}).")
+                continue
+
+            # Split into 75% in-sample (train) and 25% out-of-sample (test/validation)
+            split_idx = int(len(df) * 0.75)
+            train_df = df.iloc[:split_idx].copy()
+            val_df = df.iloc[split_idx:].copy()
+
             best_train_score = -999.0
             top_candidates = []
 
@@ -76,7 +132,7 @@ class SelfImprovementEngine:
                     for trail in self.param_grid['trailing_stop_pct']:
                         bt_res = self.backtester.run_backtest(
                             strategy_type=strat_type,
-                            symbol=benchmark_symbol,
+                            symbol=bot_symbol,
                             df=train_df,
                             stake_usd=strategy.params.get('stake_usd', 25.0),
                             take_profit_pct=tp,
@@ -115,7 +171,7 @@ class SelfImprovementEngine:
             for cand in top_3:
                 val_res = self.backtester.run_backtest(
                     strategy_type=strat_type,
-                    symbol=benchmark_symbol,
+                    symbol=bot_symbol,
                     df=val_df,
                     stake_usd=strategy.params.get('stake_usd', 25.0),
                     take_profit_pct=cand['tp'],
@@ -149,7 +205,7 @@ class SelfImprovementEngine:
                     'trailing_stop_pct': new_trail if new_trail > 0 else None
                 })
 
-                reason_str = f"Walk-Forward Verified: Train Score {best_val_candidate['train_score']:.2f} -> Out-of-Sample Sharpe {best_val_candidate.get('val_sharpe', 0.0):.2f}"
+                reason_str = f"Walk-Forward Verified on {bot_symbol}: Train Score {best_val_candidate['train_score']:.2f} -> Out-of-Sample Sharpe {best_val_candidate.get('val_sharpe', 0.0):.2f}"
 
                 # Record TP adjustment
                 if new_tp != old_tp:

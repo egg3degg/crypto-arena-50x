@@ -101,10 +101,15 @@ class TournamentEngine:
 
         # Phase 1 & 2: Capital Allocator & Portfolio Risk Manager
         self.capital_allocator = CapitalAllocator(self.db, base_stake_usd=25.0)
-        self.risk_manager = PortfolioRiskManager(max_exposure_ratio=0.70, circuit_breaker_threshold=540.0)
+        self.risk_manager = PortfolioRiskManager(max_exposure_ratio=0.70, circuit_breaker_threshold=None)
 
         # Phase 2: Walk-Forward Self-Improvement Engine
-        self.self_improver = SelfImprovementEngine(self.db, self.strategies, backtester=self.backtester)
+        self.self_improver = SelfImprovementEngine(
+            self.db,
+            self.strategies,
+            backtester=self.backtester,
+            indian_feed=self.indian_feed
+        )
 
         # Run initial capital allocation and strategy alignment
         self.capital_allocator.rebalance_allocations(self.strategies, force=True)
@@ -480,7 +485,7 @@ class TournamentEngine:
         for adj in adjustments:
             asyncio.create_task(self.notifier.notify_parameter_tuning(
                 bot_name=adj['bot_id'],
-                param=adj['param'],
+                param=adj['parameter_name'],
                 old_val=adj['old_value'],
                 new_val=adj['new_value'],
                 reason=adj['reason']
@@ -564,7 +569,7 @@ class TournamentEngine:
                 self.db.log_research(
                     category="STRATEGY_DECAY",
                     title=f"Alpha Decay Alert: {b.get('name')}",
-                    content="Auto-pausing strategy due to sustained negative Sharpe ratio."
+                    details={"message": "Auto-pausing strategy due to sustained negative Sharpe ratio."}
                 )
 
             current_eq = wallet.get_total_equity() if wallet else 50.0

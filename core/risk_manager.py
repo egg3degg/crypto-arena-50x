@@ -24,7 +24,7 @@ class PortfolioRiskManager:
             'MEME_COINS': {'DOGE/USDT', 'PENGU/USDT', 'PEPE/USDT', 'WIF/USDT'},
             'NSE_STOCKS': {'RELIANCE', 'TATAMOTORS', 'NIFTY50', 'HDFCBANK'},
             'COMMODITIES': {'GOLD/USD', 'SILVER/USD'},
-            'AI_TOKENS': {'RENDER/USDT', 'NEAR/USDT'}
+            'AI_TOKENS': {'RENDER/USDT'}
         }
         self.max_positions_per_cluster = 3
 

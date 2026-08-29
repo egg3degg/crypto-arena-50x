@@ -132,7 +132,7 @@ class StrategyBacktester:
         if len(trades) >= 2:
             pnls = [t['pnl'] for t in trades]
             mean_p = sum(pnls) / len(pnls)
-            var_p = sum((p - mean_p) ** 2 for p in pnls) / len(pnls)
+            var_p = sum((p - mean_p) ** 2 for p in pnls) / max(1, len(pnls) - 1)
             std_p = math.sqrt(var_p) if var_p > 0 else 0.0001
             sharpe = (mean_p / std_p) * math.sqrt(len(trades))
         else:

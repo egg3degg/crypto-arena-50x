@@ -52,10 +52,10 @@ class CapitalAllocator:
         losses = [p for p in pnls if p < 0]
 
         mean_pnl = sum(pnls) / len(pnls)
-        variance = sum((p - mean_pnl) ** 2 for p in pnls) / len(pnls)
+        variance = sum((p - mean_pnl) ** 2 for p in pnls) / max(1, len(pnls) - 1)
         std_pnl = math.sqrt(variance) if variance > 0 else 0.0001
 
-        downside_variance = sum(p ** 2 for p in losses) / len(pnls) if losses else 0.0001
+        downside_variance = sum(p ** 2 for p in losses) / max(1, len(pnls) - 1) if losses else 0.0001
         downside_std = math.sqrt(downside_variance)
 
         # Annualized approx factor (based on ~10 trades/day)
