@@ -730,6 +730,9 @@ function renderFilteredLeaderboard() {
         catBadge = '<span style="font-size:10px; background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px; color:var(--text-muted);">Generic</span>';
       }
 
+      const inPlay = Math.max(0, bot.current_equity - bot.available_balance);
+      const inPlayBadge = inPlay > 1.0 ? `<span style="color:var(--accent-yellow); font-size:10px; font-weight:700;">🟡 $${inPlay.toFixed(2)} in play</span>` : `<span style="color:var(--text-muted); font-size:10px;">⚪ In Cash ($50)</span>`;
+
       html += `
         <div class="bot-card ${isActive ? '' : 'paused'}" id="card-${bot.bot_id}">
           <div class="card-top-row">
@@ -767,8 +770,9 @@ function renderFilteredLeaderboard() {
             </div>
           </div>
 
-          <div style="font-size:11px; color:var(--text-muted); margin-bottom:12px; display:flex; justify-content:space-between;">
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
             <span>Free Cash: <strong style="color:var(--accent-green);">$${bot.available_balance.toFixed(2)}</strong></span>
+            ${inPlayBadge}
             <span>Max DD: <strong style="color:${bot.max_drawdown > 3 ? 'var(--accent-red)' : 'var(--text-muted)'};">${bot.max_drawdown.toFixed(2)}%</strong></span>
           </div>
 

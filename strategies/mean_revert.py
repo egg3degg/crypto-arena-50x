@@ -9,13 +9,13 @@ from .base_strategy import BaseStrategy, StrategyDecision, Signal
 class MeanRevertStrategy(BaseStrategy):
     def __init__(self, bot_id: str = "bot_2_meanrevert", params: Dict[str, Any] = None):
         default_params = {
-            'bb_pct_b_entry': 0.12,       # Within bottom 12% of Bollinger Band
-            'rsi_oversold': 36.0,         # Oversold RSI threshold
-            'rsi_exit': 65.0,             # Mean-reverted exit threshold
-            'stoch_oversold': 25.0,       # Stochastic oversold threshold
-            'stop_loss_pct': 0.018,       # 1.8% tight SL
-            'take_profit_pct': 0.032,     # 3.2% TP (Band mid/upper target)
-            'trailing_stop_pct': 0.012,   # 1.2% Trailing SL
+            'bb_pct_b_entry': 0.20,       # Within bottom 20% of Bollinger Band
+            'rsi_oversold': 42.0,         # Oversold RSI threshold (captures quick dips)
+            'rsi_exit': 60.0,             # Mean-reverted exit threshold
+            'stoch_oversold': 30.0,       # Stochastic oversold threshold
+            'stop_loss_pct': 0.015,       # 1.5% tight SL
+            'take_profit_pct': 0.024,     # 2.4% TP
+            'trailing_stop_pct': 0.010,   # 1.0% Trailing SL
             'stake_usd': 25.0             # $25 per scalp
         }
         if params:

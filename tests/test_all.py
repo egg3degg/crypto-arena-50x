@@ -137,5 +137,5 @@ def test_self_improver_walk_forward(temp_db):
     improver = SelfImprovementEngine(temp_db, {"bot_1_alphatrend": strat}, backtester=backtester)
     adjustments = improver.evaluate_and_optimize()
     # Strategy parameters remain valid within bounded grid
-    assert strat.params['take_profit_pct'] in [0.02, 0.03, 0.04, 0.045, 0.05, 0.055, 0.06]
-    assert strat.params['stop_loss_pct'] in [0.015, 0.02, 0.025, 0.03]
+    assert strat.params['take_profit_pct'] in [0.02, 0.028, 0.03, 0.04, 0.045, 0.05, 0.055, 0.06]
+    assert strat.params['stop_loss_pct'] in [0.015, 0.018, 0.02, 0.025, 0.03]

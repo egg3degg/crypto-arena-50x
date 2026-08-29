@@ -9,15 +9,15 @@ from .base_strategy import BaseStrategy, StrategyDecision, Signal
 class AlphaTrendStrategy(BaseStrategy):
     def __init__(self, bot_id: str = "bot_1_alphatrend", params: Dict[str, Any] = None):
         default_params = {
-            'ema_fast': 20,
-            'ema_slow': 50,
-            'adx_threshold': 22.0,
-            'rsi_min': 42.0,
-            'rsi_max': 68.0,
-            'stop_loss_pct': 0.025,       # 2.5% SL
-            'take_profit_pct': 0.045,     # 4.5% TP
-            'trailing_stop_pct': 0.018,   # 1.8% Trailing SL
-            'stake_usd': 25.0             # $25 per trade (2 trades max)
+            'ema_fast': 12,
+            'ema_slow': 34,
+            'adx_threshold': 18.0,
+            'rsi_min': 38.0,
+            'rsi_max': 72.0,
+            'stop_loss_pct': 0.018,       # 1.8% SL
+            'take_profit_pct': 0.028,     # 2.8% TP for faster trade realization
+            'trailing_stop_pct': 0.012,   # 1.2% Trailing SL
+            'stake_usd': 25.0             # $25 per trade
         }
         if params:
             default_params.update(params)

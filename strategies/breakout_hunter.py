@@ -9,12 +9,12 @@ from .base_strategy import BaseStrategy, StrategyDecision, Signal
 class BreakoutHunterStrategy(BaseStrategy):
     def __init__(self, bot_id: str = "bot_3_breakouthunter", params: Dict[str, Any] = None):
         default_params = {
-            'volume_surge_multiplier': 1.8,  # Volume > 1.8x 20-period average
-            'donchian_period': 20,
-            'rsi_breakout_min': 52.0,        # Bullish momentum behind breakout
-            'stop_loss_pct': 0.022,          # 2.2% SL
-            'take_profit_pct': 0.055,        # 5.5% TP
-            'trailing_stop_pct': 0.018,      # 1.8% Trailing SL
+            'volume_surge_multiplier': 1.4,  # Volume > 1.4x 20-period average
+            'donchian_period': 14,           # 14-period Donchian channel
+            'rsi_breakout_min': 48.0,        # Momentum trigger
+            'stop_loss_pct': 0.016,          # 1.6% SL
+            'take_profit_pct': 0.030,        # 3.0% TP
+            'trailing_stop_pct': 0.012,      # 1.2% Trailing SL
             'stake_usd': 25.0                # $25 per breakout
         }
         if params:
