@@ -93,7 +93,7 @@ class CapitalAllocator:
 
             # Determine Base Allocation Multiplier
             if sharpe >= 1.5 and win_rate >= 55.0 and max_dd < 3.0:
-                multiplier = 1.5 # Boost high alpha
+                multiplier = 1.5 # High alpha multiplier
                 health = 'HEALTHY'
             elif sharpe >= 0.5 and win_rate >= 50.0:
                 multiplier = 1.2 # Moderate boost
@@ -108,13 +108,17 @@ class CapitalAllocator:
                 multiplier = 1.0 # Standard base
                 health = 'HEALTHY'
 
-            # Apply Hard Rule: Synthetic/Simulated Feeds capped at max 50% allocation ($12.50)
-            if bot_id in self.synthetic_feed_bots:
-                multiplier = min(multiplier, 0.5)
+            # Dynamic Fractional Compounding: Scale base stake with growing equity (45% of total equity)
+            bot_equity = float(bot.get('current_balance', 50.0))
+            dynamic_base = max(self.base_stake_usd, bot_equity * 0.45)
 
-            target_stake = round(self.base_stake_usd * multiplier, 2)
-            # Minimum order size floor of $10.00, maximum of $45.00
-            target_stake = max(10.0, min(45.0, target_stake))
+            # Apply Hard Rule: Synthetic/Simulated Feeds capped at max $12.50
+            if bot_id in self.synthetic_feed_bots:
+                target_stake = min(12.50, round(self.base_stake_usd * min(multiplier, 0.5), 2))
+            else:
+                target_stake = round(dynamic_base * multiplier, 2)
+                # Ensure stake is bounded between $10 floor and 50% of bot equity
+                target_stake = max(10.0, min(max(45.0, bot_equity * 0.50), target_stake))
 
             self.bot_allocations[bot_id] = target_stake
             self.bot_health_status[bot_id] = health

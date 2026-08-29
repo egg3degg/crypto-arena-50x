@@ -46,21 +46,23 @@ class PaperWallet:
             self.risk_per_trade = 0.02 # 2% risk budget per trade
 
     def calculate_volatility_adjusted_stake(self, price: float, atr: Optional[float] = None, base_stake: float = 25.0) -> float:
-        """Dynamically scales position sizing based on 14-period ATR volatility."""
+        """Dynamically scales position sizing based on 14-period ATR volatility and compounding equity."""
+        total_eq = self.get_total_equity()
+        max_allowed_stake = max(self.min_order_usd, min(self.available_balance, total_eq * 0.50))
+
         if not atr or atr <= 0 or price <= 0:
-            return max(self.min_order_usd, min(base_stake, self.available_balance))
+            return max(self.min_order_usd, min(base_stake, max_allowed_stake))
 
         # Normalized volatility: ATR / Price
         volatility_ratio = atr / price
         # Risk budget = 2% of total equity
-        total_eq = self.get_total_equity()
         risk_budget = total_eq * getattr(self, 'risk_per_trade', 0.02)
         
         # Volatility sizing: In quiet market bet higher conviction, in wild volatility bet safer
         vol_adjusted_stake = risk_budget / max(0.005, volatility_ratio)
         
-        # Cap between min_order_usd ($10) and max stake ($45 or available cash)
-        final_stake = max(self.min_order_usd, min(base_stake * 1.5, vol_adjusted_stake, self.available_balance))
+        # Cap between min_order_usd ($10) and dynamic equity stake
+        final_stake = max(self.min_order_usd, min(base_stake * 1.5, vol_adjusted_stake, max_allowed_stake))
         return round(final_stake, 2)
 
     def get_open_positions(self) -> List[Dict[str, Any]]:
