@@ -188,16 +188,19 @@ async def get_equity_trajectory(bot_id: Optional[str] = None):
         # Clean snapshot data and guarantee total_equity calculation
         cleaned_snaps = []
         for s in b_snaps:
-            eq = float(s.get('total_equity', 50.0))
-            # Sanity guard: total_equity represents total net worth, not available cash
-            if eq < 20.0 and float(s.get('balance', 0)) < 20.0:
-                cost_in_positions = 50.0 - float(s.get('balance', 0.0))
-                eq = float(s.get('balance', 0.0)) + cost_in_positions + float(s.get('unrealized_pnl', 0.0))
+            eq = float(s.get('total_equity') if s.get('total_equity') is not None else 50.0)
+            bal = float(s.get('balance') if s.get('balance') is not None else 50.0)
+            unrealized = float(s.get('unrealized_pnl', 0.0))
+            
+            # Sanity guard: total_equity represents total net worth (cash + open positions + unrealized PnL)
+            if eq < 35.0 and bal < 35.0 and float(s.get('roi_pct', 0.0)) > -15.0:
+                cost_in_positions = 50.0 - bal
+                eq = bal + cost_in_positions + unrealized
             
             cleaned_snaps.append({
                 'timestamp': s['timestamp'],
-                'balance': float(s.get('balance', 50.0)),
-                'total_equity': eq,
+                'balance': bal,
+                'total_equity': round(eq, 2),
                 'roi_pct': float(s.get('roi_pct', 0.0))
             })
 

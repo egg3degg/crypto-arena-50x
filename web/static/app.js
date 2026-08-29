@@ -294,22 +294,23 @@ function renderTrajectoryFromCache() {
       return lastVal; // Absolute $
     });
 
-    // Trade Dot Overlays
+    // Trade Dot Overlays: Map trades to closest snapshot timestamp within 60s
     const pointBackgroundColors = [];
     const pointBorderColors = [];
     const pointRadiuses = [];
     const pointTradeData = [];
 
     filteredTimestamps.forEach((ts) => {
+      const tsTime = new Date(ts).getTime();
       const matchingTrades = botData.trade_markers.filter(m => {
-        return Math.abs(new Date(m.timestamp) - new Date(ts)) < 25000;
+        return Math.abs(new Date(m.timestamp).getTime() - tsTime) <= 60000;
       });
 
       let showDot = false;
       let tradeMatch = null;
 
       if (matchingTrades.length > 0 && trajectoryDotVisibility !== 'NONE') {
-        const t = matchingTrades[0];
+        const t = matchingTrades[matchingTrades.length - 1];
         if (trajectoryDotVisibility === 'ALL') {
           showDot = true;
         } else if (trajectoryDotVisibility === 'WINS' && (t.side === 'BUY' || t.realized_pnl >= 0)) {
@@ -321,7 +322,7 @@ function renderTrajectoryFromCache() {
       }
 
       if (showDot && tradeMatch) {
-        pointRadiuses.push(8);
+        pointRadiuses.push(6);
         pointBackgroundColors.push(tradeMatch.dot_color);
         pointBorderColors.push('#ffffff');
         pointTradeData.push(tradeMatch);
@@ -342,14 +343,44 @@ function renderTrajectoryFromCache() {
       borderWidth: 2.2,
       hidden: isHidden,
       fill: botEntries.length === 1,
-      tension: 0.2,
+      tension: 0.25,
       pointRadius: pointRadiuses,
       pointBackgroundColor: pointBackgroundColors,
       pointBorderColor: pointBorderColors,
-      pointHoverRadius: 10,
+      pointHoverRadius: 9,
       tradeDetails: pointTradeData
     });
   });
+
+  // Calculate dynamic min/max with sensible margin to avoid micro-penny distortion
+  let minVal = Infinity;
+  let maxVal = -Infinity;
+  datasets.forEach(d => {
+    if (d.hidden) return;
+    d.data.forEach(v => {
+      if (typeof v === 'number' && !isNaN(v)) {
+        if (v < minVal) minVal = v;
+        if (v > maxVal) maxVal = v;
+      }
+    });
+  });
+
+  if (minVal === Infinity) minVal = trajectoryScaleMode === 'PERCENT' ? 0 : 50;
+  if (maxVal === -Infinity) maxVal = trajectoryScaleMode === 'PERCENT' ? 0 : 50;
+
+  let ySuggestedMin, ySuggestedMax;
+  if (trajectoryScaleMode === 'PERCENT') {
+    const spread = Math.max(4.0, (maxVal - minVal) * 1.3);
+    const mid = (maxVal + minVal) / 2;
+    ySuggestedMin = Math.floor(mid - spread / 2);
+    ySuggestedMax = Math.ceil(mid + spread / 2);
+  } else {
+    // In USD mode, ensure at least $4.00 total vertical spread so a 5-cent fee doesn't look like a 90% crash
+    const spread = Math.max(4.0, (maxVal - minVal) * 1.3);
+    const mid = (maxVal + minVal) / 2;
+    ySuggestedMin = Math.floor(Math.min(minVal - 0.5, mid - spread / 2));
+    ySuggestedMax = Math.ceil(Math.max(maxVal + 0.5, mid + spread / 2));
+  }
 
   // 4. Render Interactive Legend Chips
   renderLegendChips(botEntries);
@@ -358,6 +389,10 @@ function renderTrajectoryFromCache() {
   if (trajectoryChartInstance) {
     trajectoryChartInstance.data.labels = timeLabels;
     trajectoryChartInstance.data.datasets = datasets;
+    if (trajectoryChartInstance.options.scales && trajectoryChartInstance.options.scales.y) {
+      trajectoryChartInstance.options.scales.y.suggestedMin = ySuggestedMin;
+      trajectoryChartInstance.options.scales.y.suggestedMax = ySuggestedMax;
+    }
     trajectoryChartInstance.update('none'); // In-place update preserving user zoom level & pan position!
     return;
   }
@@ -379,6 +414,8 @@ function renderTrajectoryFromCache() {
         },
         y: {
           grid: { color: '#1e293b' },
+          suggestedMin: ySuggestedMin,
+          suggestedMax: ySuggestedMax,
           ticks: {
             color: '#94a3b8',
             font: { family: 'JetBrains Mono', size: 11 },
