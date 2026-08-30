@@ -802,9 +802,9 @@ function renderFilteredLeaderboard() {
   if (goalEl && activeBotsCache.length) {
     const maxEq = Math.max(...activeBotsCache.map(b => Number(b.current_equity || 50.0)), 50.0);
     const topBot = activeBotsCache.find(b => Number(b.current_equity || 50.0) === maxEq) || activeBotsCache[0];
-    const pct = Math.min(100, Math.round((maxEq / 250.0) * 100));
-    if (maxEq >= 250.0) {
-      goalEl.innerHTML = `🎉 <span style="color:var(--accent-green);">$${maxEq.toFixed(2)} (GOAL REACHED!)</span>`;
+    const pct = Math.min(100, Math.round((maxEq / 100.0) * 100));
+    if (maxEq >= 100.0) {
+      goalEl.innerHTML = `🎉 <span style="color:var(--accent-green);">$${maxEq.toFixed(2)} (🎯 $100 HIT!)</span>`;
     } else {
       goalEl.innerHTML = `${topBot.name}: <strong>$${maxEq.toFixed(2)}</strong> (${pct}%)`;
     }
