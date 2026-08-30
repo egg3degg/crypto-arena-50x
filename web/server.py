@@ -241,6 +241,19 @@ async def get_performance_report():
         return {}
     return engine.get_performance_report()
 
+@app.get("/api/income-plan")
+async def get_income_plan():
+    if not engine or not hasattr(engine, 'income_engine'):
+        return {}
+    return engine.income_engine.calculate_income_metrics(engine.wallets)
+
+@app.post("/api/harvest-profits", dependencies=[Depends(verify_admin_access)])
+async def harvest_profits():
+    if not engine or not hasattr(engine, 'income_engine'):
+        return JSONResponse(status_code=500, content={"error": "Engine not initialized"})
+    result = engine.income_engine.harvest_profits(engine.wallets)
+    return result
+
 @app.get("/api/market-overview")
 async def get_market_overview():
     if not engine:

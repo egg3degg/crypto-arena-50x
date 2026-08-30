@@ -115,6 +115,8 @@ function switchTab(tabId, el) {
     fetchPolymarketData();
   } else if (tabId === 'performance') {
     fetchPerformanceReport();
+  } else if (tabId === 'income') {
+    loadMonthlyIncomeHub();
   }
 }
 
@@ -1526,4 +1528,124 @@ function renderPerformanceTab(data) {
     `;
   });
   tbody.innerHTML = html;
+}
+
+// --- $300/MO SIDE INCOME HUB ---
+async function loadMonthlyIncomeHub() {
+  try {
+    const res = await fetch(`${API_BASE}/api/income-plan`);
+    const data = await res.json();
+    if (!data) return;
+
+    const dailyEl = document.getElementById('income-daily-rate');
+    const hourlyEl = document.getElementById('income-hourly-rate');
+    const projMonthlyEl = document.getElementById('income-projected-monthly');
+    const goalSubEl = document.getElementById('income-goal-progress-sub');
+    const vaultEl = document.getElementById('income-harvested-vault');
+    const progressLabel = document.getElementById('income-progress-label');
+    const progressBar = document.getElementById('income-progress-bar');
+
+    if (dailyEl) dailyEl.textContent = `$${(data.current_daily_yield || 0).toFixed(2)} / day`;
+    if (hourlyEl) hourlyEl.textContent = `~$${((data.current_daily_yield || 0) / 24).toFixed(2)} / hour run-rate`;
+    if (projMonthlyEl) projMonthlyEl.textContent = `$${(data.projected_monthly_income || 0).toFixed(2)} / mo`;
+    if (goalSubEl) goalSubEl.textContent = `${(data.progress_to_goal_pct || 0).toFixed(1)}% of $300 goal`;
+    if (vaultEl) vaultEl.textContent = `$${(data.harvested_vault_usd || 0).toFixed(2)}`;
+
+    const pct = Math.min(100, Math.max(0, data.progress_to_goal_pct || 0));
+    if (progressLabel) progressLabel.textContent = `${pct.toFixed(1)}% ($${(data.projected_monthly_income || 0).toFixed(2)} / $300.00)`;
+    if (progressBar) progressBar.style.width = `${pct}%`;
+
+    // Render Champion Fund List
+    const fundList = document.getElementById('income-champion-fund-list');
+    if (fundList && data.champion_fund && data.champion_fund.length) {
+      let fundHtml = '';
+      const colors = ['var(--accent-cyan)', 'var(--accent-yellow)', 'var(--accent-purple)'];
+      const allocs = ['40% Capital ($200)', '40% Capital ($200)', '20% Capital ($100)'];
+      data.champion_fund.forEach((b, idx) => {
+        const c = colors[idx % colors.length];
+        const a = allocs[idx % allocs.length];
+        fundHtml += `
+          <div class="doc-subcard" style="border-left: 4px solid ${c};">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong>${idx + 1}. ${b.name} (${a})</strong>
+              <span class="pill-btn status-active" style="padding:2px 8px; font-size:10px;">${Number(b.win_rate || 0).toFixed(1)}% Win Rate</span>
+            </div>
+            <p style="font-size:11px; margin-top:4px; color:var(--text-muted);">
+              ${b.role} &bull; Strategy: <code>${b.strategy_name}</code> &bull; Equity: <strong>$${Number(b.equity || 50.0).toFixed(2)}</strong>
+            </p>
+          </div>
+        `;
+      });
+      fundList.innerHTML = fundHtml;
+    }
+
+    updateIncomeCalculator();
+  } catch (err) {
+    console.error('Error loading income hub:', err);
+  }
+}
+
+function updateIncomeCalculator() {
+  const capSlider = document.getElementById('calc-cap-slider');
+  const tradesSlider = document.getElementById('calc-trades-slider');
+  const winrateSlider = document.getElementById('calc-winrate-slider');
+
+  const capVal = document.getElementById('calc-cap-val');
+  const tradesVal = document.getElementById('calc-trades-val');
+  const winrateVal = document.getElementById('calc-winrate-val');
+
+  const monthlyRes = document.getElementById('calc-monthly-result');
+  const dailyRes = document.getElementById('calc-daily-result');
+  const badge = document.getElementById('calc-status-badge');
+
+  if (!capSlider || !tradesSlider || !winrateSlider) return;
+
+  const capital = parseFloat(capSlider.value);
+  const tradesPerDay = parseInt(tradesSlider.value);
+  const winrate = parseFloat(winrateSlider.value) / 100.0;
+
+  if (capVal) capVal.textContent = `$${capital.toFixed(0)}`;
+  if (tradesVal) tradesVal.textContent = `${tradesPerDay} trades / day`;
+  if (winrateVal) winrateVal.textContent = `${(winrate * 100).toFixed(0)}%`;
+
+  // Mathematical Model:
+  // Position stake = 35% of capital (spread across active trades)
+  // Win trade average net return = +2.0%
+  // Loss trade average stop loss = -1.1%
+  const avgStake = capital * 0.35;
+  const winProfit = avgStake * 0.020;
+  const lossAmount = avgStake * 0.011;
+
+  const expectedProfitPerTrade = (winrate * winProfit) - ((1 - winrate) * lossAmount);
+  const dailyIncome = Math.max(0, expectedProfitPerTrade * tradesPerDay);
+  const monthlyIncome = dailyIncome * 30.0;
+
+  if (monthlyRes) monthlyRes.textContent = `+$${monthlyIncome.toFixed(2)} / mo`;
+  if (dailyRes) dailyRes.textContent = `+$${dailyIncome.toFixed(2)} / day`;
+
+  if (badge) {
+    if (monthlyIncome >= 300.0) {
+      badge.textContent = `✅ Target Achieved! Generates $${monthlyIncome.toFixed(0)}/mo side income (Goal: $300/mo)`;
+      badge.style.color = 'var(--accent-green)';
+    } else {
+      const needed = 300.0 - monthlyIncome;
+      badge.textContent = `⚠️ Generates $${monthlyIncome.toFixed(0)}/mo (Add $${(needed / 0.6).toFixed(0)} capital or +${Math.ceil(needed / 30 / expectedProfitPerTrade)} trades to reach $300/mo)`;
+      badge.style.color = 'var(--accent-yellow)';
+    }
+  }
+}
+
+async function triggerProfitHarvest() {
+  try {
+    const res = await apiPost('/api/harvest-profits', {});
+    if (res && res.harvested_amount !== undefined) {
+      alert(`🎉 Profit Harvest Successful!\nBanked: $${res.harvested_amount.toFixed(2)}\nTotal Withdrawable Side Income Vault: $${res.total_vault_usd.toFixed(2)}`);
+      loadMonthlyIncomeHub();
+      fetchInitialData();
+    } else {
+      alert(res.error || 'No excess profit above $50 base capital to harvest yet.');
+    }
+  } catch (err) {
+    alert('Error harvesting profit: ' + err.message);
+  }
 }

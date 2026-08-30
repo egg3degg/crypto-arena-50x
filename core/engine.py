@@ -35,6 +35,7 @@ try:
     from core.backtester import StrategyBacktester
     from core.capital_allocator import CapitalAllocator
     from core.risk_manager import PortfolioRiskManager
+    from core.income_engine import MonthlyIncomeEngine
     from learning.self_improver import SelfImprovementEngine
     from notifications.notifier import ArenaNotifier
     from config import config
@@ -64,6 +65,7 @@ except (ImportError, ValueError):
     from ..research.polymarket_feed import PolymarketFeed
     from ..research.polymarket_whale_tracker import PolymarketWhaleTracker
     from ..research.indian_market_feed import IndianAndCommodityFeed
+    from .income_engine import MonthlyIncomeEngine
     from ..learning.self_improver import SelfImprovementEngine
     from ..notifications.notifier import ArenaNotifier
     from ..config import config
@@ -102,6 +104,7 @@ class TournamentEngine:
         # Phase 1 & 2: Capital Allocator & Portfolio Risk Manager
         self.capital_allocator = CapitalAllocator(self.db, base_stake_usd=25.0)
         self.risk_manager = PortfolioRiskManager(max_exposure_ratio=0.70, circuit_breaker_threshold=None)
+        self.income_engine = MonthlyIncomeEngine(self.db, monthly_target_usd=300.0)
 
         # Phase 2: Walk-Forward Self-Improvement Engine
         self.self_improver = SelfImprovementEngine(

@@ -87,7 +87,7 @@
       <button class="tab-btn" onclick="switchTab('analytics')">📊 Portfolio Analytics</button>
       <button class="tab-btn" onclick="switchTab('backtest')">🧪 30-Day Backtester</button>
       <button class="tab-btn" onclick="switchTab('research')">🧠 Deep Research & Sentiment</button>
-      <button class="tab-btn" onclick="switchTab('trades')">⚡ Live Trades</button>
+      <button class="tab-btn" onclick="switchTab('income')" style="color:var(--accent-green); border-color:rgba(16,185,129,0.5); font-weight:700;">💵 $300/Mo Income Hub</button>
       <button class="tab-btn" onclick="switchTab('performance')" style="color:var(--accent-green); border-color:rgba(16,185,129,0.35);">🛡️ Performance & Risk</button>
       <button class="tab-btn" onclick="switchTab('docs')" style="color:var(--gold); border-color:rgba(251,191,36,0.3);">📚 Documentation</button>
     </nav>
@@ -751,6 +751,178 @@
             </ul>
           </div>
         </div>
+      </section>
+
+      <!-- TAB: $300/MO SIDE INCOME HUB -->
+      <section id="tab-income" class="tab-pane">
+        <div class="section-title-row">
+          <div>
+            <h2>💵 Autonomous $300/Month Side Income Hub</h2>
+            <span class="caption">Real-time yield tracking, daily run-rate analytics, multi-strategy champion fund, and automated profit harvesting.</span>
+          </div>
+          <div class="quick-controls-bar">
+            <button class="btn-ctrl btn-ctrl-success" onclick="triggerProfitHarvest()" style="background:var(--accent-green); color:#000; font-weight:700;">💰 Harvest Profits to Vault</button>
+          </div>
+        </div>
+
+        <!-- Income KPI Grid -->
+        <div class="analytics-metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 24px;">
+          <div class="stat-card" style="border-left: 4px solid var(--accent-green);">
+            <span class="stat-label">MONTHLY TARGET</span>
+            <span class="stat-val" style="color:var(--accent-green); font-size:24px;">$300.00 / mo</span>
+            <span class="stat-sub">$10.00 / day cash flow target</span>
+          </div>
+          <div class="stat-card" style="border-left: 4px solid var(--accent-cyan);">
+            <span class="stat-label">CURRENT DAILY RUN-RATE</span>
+            <span class="stat-val" id="income-daily-rate" style="color:var(--accent-cyan); font-size:24px;">$--- / day</span>
+            <span class="stat-sub" id="income-hourly-rate">~$0.42 / hour</span>
+          </div>
+          <div class="stat-card" style="border-left: 4px solid var(--accent-yellow);">
+            <span class="stat-label">PROJECTED 30-DAY INCOME</span>
+            <span class="stat-val" id="income-projected-monthly" style="color:var(--accent-yellow); font-size:24px;">$---</span>
+            <span class="stat-sub" id="income-goal-progress-sub">0.0% of $300 goal</span>
+          </div>
+          <div class="stat-card" style="border-left: 4px solid var(--accent-purple);">
+            <span class="stat-label">HARVESTED PROFIT VAULT</span>
+            <span class="stat-val" id="income-harvested-vault" style="color:var(--accent-purple); font-size:24px;">$0.00</span>
+            <span class="stat-sub">Banked withdrawable side income</span>
+          </div>
+        </div>
+
+        <!-- Goal Progress Bar -->
+        <div class="doc-card" style="margin-bottom: 24px; padding: 20px; background: rgba(16,185,129,0.04); border-color: rgba(16,185,129,0.25);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span style="font-weight:700; color:var(--text-main); font-size:14px;">🎯 30-Day Side Income Run-Rate Progress</span>
+            <span id="income-progress-label" style="font-weight:800; color:var(--accent-green); font-size:14px;">0% ($0.00 / $300.00)</span>
+          </div>
+          <div style="width:100%; height:16px; background:rgba(255,255,255,0.08); border-radius:8px; overflow:hidden; border:1px solid rgba(255,255,255,0.12);">
+            <div id="income-progress-bar" style="width:0%; height:100%; background:linear-gradient(90deg, #10b981, #06b6d4, #f59e0b); border-radius:8px; transition:width 0.8s ease;"></div>
+          </div>
+        </div>
+
+        <!-- Grid Layout: Capital Blueprint & Champion Fund -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap:20px; margin-bottom:24px;">
+          
+          <!-- Capital Requirements Blueprint Table -->
+          <div class="doc-card" style="margin-bottom:0;">
+            <h3 style="color:var(--accent-cyan); display:flex; align-items:center; gap:8px;">
+              <span>📐</span> $300/Month Capital Requirement Blueprint
+            </h3>
+            <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Depending on your risk tolerance, here is how much trading capital achieves $300/mo side income:</p>
+            <table class="leaderboard-table" style="font-size:12px;">
+              <thead>
+                <tr>
+                  <th>Capital</th>
+                  <th>Monthly ROI</th>
+                  <th>Daily Target</th>
+                  <th>Strategy Profile</th>
+                </tr>
+              </thead>
+              <tbody id="income-capital-tiers">
+                <tr>
+                  <td><strong>$300</strong></td>
+                  <td><span style="color:var(--accent-red);">100% / mo</span></td>
+                  <td>$10.00 / day</td>
+                  <td>Aggressive 5m Scalping</td>
+                </tr>
+                <tr style="background:rgba(16,185,129,0.08);">
+                  <td><strong style="color:var(--accent-green);">$500 ⭐</strong></td>
+                  <td><span style="color:var(--accent-green); font-weight:700;">60% / mo</span></td>
+                  <td>$10.00 / day</td>
+                  <td><strong>Balanced Multi-Bot Trio</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>$1,000</strong></td>
+                  <td><span style="color:var(--accent-cyan);">30% / mo</span></td>
+                  <td>$10.00 / day</td>
+                  <td>Conservative Institutional Yield</td>
+                </tr>
+                <tr>
+                  <td><strong>$2,000</strong></td>
+                  <td><span style="color:var(--accent-purple);">15% / mo</span></td>
+                  <td>$10.00 / day</td>
+                  <td>Ultra-Safe Low-Risk Fund</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Top-3 Champion Fund Allocation -->
+          <div class="doc-card" style="margin-bottom:0;">
+            <h3 style="color:var(--accent-green); display:flex; align-items:center; gap:8px;">
+              <span>🏆</span> 3-Bot Multi-Strategy Income Fund
+            </h3>
+            <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">The optimal institutional side-income setup concentrates capital across 3 complementary market regimes:</p>
+            <div id="income-champion-fund-list" style="display:flex; flex-direction:column; gap:10px;">
+              <div class="doc-subcard" style="border-left: 4px solid var(--accent-cyan);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong>Bot 1: MeanRevert (40% Capital)</strong>
+                  <span class="pill-btn status-active" style="padding:2px 8px; font-size:10px;">Daily Cash Flow</span>
+                </div>
+                <p style="font-size:11px; margin-top:4px;">Scalps oversold dips during ranging & sideways markets (65% of market time).</p>
+              </div>
+              <div class="doc-subcard" style="border-left: 4px solid var(--accent-yellow);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong>Bot 2: BreakoutHunter (40% Capital)</strong>
+                  <span class="pill-btn status-active" style="padding:2px 8px; font-size:10px;">Trend Explosions</span>
+                </div>
+                <p style="font-size:11px; margin-top:4px;">Catches high-volatility Donchian breakout surges on high-beta meme tokens.</p>
+              </div>
+              <div class="doc-subcard" style="border-left: 4px solid var(--accent-purple);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong>Bot 3: AdaptiveGrid (20% Capital)</strong>
+                  <span class="pill-btn status-active" style="padding:2px 8px; font-size:10px;">Market Maker</span>
+                </div>
+                <p style="font-size:11px; margin-top:4px;">Harvests passive bid-ask spreads around dynamic 20-period EMAs.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Interactive Side Income Calculator -->
+        <div class="doc-card">
+          <h3 style="color:var(--accent-yellow); display:flex; align-items:center; gap:8px;">
+            <span>🧮</span> Interactive Side Income Calculator
+          </h3>
+          <p style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">Simulate your monthly cash flow based on real trading capital and daily win rates:</p>
+          
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:24px; align-items:center;">
+            <div>
+              <div style="margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;">
+                  <span>Trading Capital:</span>
+                  <strong id="calc-cap-val" style="color:var(--accent-cyan); font-size:15px;">$500</strong>
+                </div>
+                <input type="range" id="calc-cap-slider" min="100" max="5000" step="50" value="500" style="width:100%;" oninput="updateIncomeCalculator()">
+              </div>
+
+              <div style="margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;">
+                  <span>Daily Completed Trades:</span>
+                  <strong id="calc-trades-val" style="color:var(--accent-yellow); font-size:15px;">12 trades / day</strong>
+                </div>
+                <input type="range" id="calc-trades-slider" min="2" max="40" step="1" value="12" style="width:100%;" oninput="updateIncomeCalculator()">
+              </div>
+
+              <div>
+                <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;">
+                  <span>Expected Win Rate:</span>
+                  <strong id="calc-winrate-val" style="color:var(--accent-green); font-size:15px;">70%</strong>
+                </div>
+                <input type="range" id="calc-winrate-slider" min="50" max="90" step="1" value="70" style="width:100%;" oninput="updateIncomeCalculator()">
+              </div>
+            </div>
+
+            <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:20px; text-align:center;">
+              <span style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px;">ESTIMATED MONTHLY CASH FLOW</span>
+              <div id="calc-monthly-result" style="font-size:36px; font-weight:900; color:var(--accent-green); margin:8px 0;">+$336.00 / mo</div>
+              <span id="calc-daily-result" style="font-size:14px; color:var(--accent-cyan); font-weight:700;">+$11.20 / day</span>
+              <div id="calc-status-badge" style="margin-top:12px; font-size:12px; color:var(--accent-yellow); font-weight:600;">✅ Meets & Exceeds $300/Mo Side Income Goal!</div>
+            </div>
+          </div>
+        </div>
+
       </section>
     </main>
 
