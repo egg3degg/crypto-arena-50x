@@ -27,15 +27,19 @@ class PaperWallet:
         # Load existing state from db if available
         bot_record = self.db.get_bot(bot_id)
         if bot_record:
-            self.initial_capital = bot_record['initial_capital']
-            self.current_balance = bot_record['current_balance']
-            self.available_balance = bot_record['available_balance']
-            self.peak_equity = bot_record['peak_equity']
-            self.max_drawdown = bot_record['max_drawdown']
-            self.total_pnl = bot_record['total_pnl']
-            self.total_trades = bot_record['total_trades']
-            self.winning_trades = bot_record['winning_trades']
-            self.losing_trades = bot_record['losing_trades']
+            self.initial_capital = bot_record.get('initial_capital') or initial_capital
+            self.current_balance = bot_record.get('current_balance', initial_capital)
+            self.available_balance = bot_record.get('available_balance', initial_capital)
+            if self.current_balance <= 0.0 or self.available_balance <= 0.0:
+                self.current_balance = self.initial_capital
+                self.available_balance = self.initial_capital
+            self.peak_equity = max(self.current_balance, bot_record.get('peak_equity') or initial_capital)
+            self.max_drawdown = bot_record.get('max_drawdown', 0.0)
+            self.total_pnl = bot_record.get('total_pnl', 0.0)
+            self.total_trades = bot_record.get('total_trades', 0)
+            self.winning_trades = bot_record.get('winning_trades', 0)
+            self.losing_trades = bot_record.get('losing_trades', 0)
+            self.risk_per_trade = 0.02
         else:
             self.peak_equity = initial_capital
             self.max_drawdown = 0.0
