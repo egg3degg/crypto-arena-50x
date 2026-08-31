@@ -247,14 +247,14 @@ async def get_income_plan():
         return {}
     return engine.income_engine.calculate_income_metrics(engine.wallets)
 
-@app.post("/api/harvest-profits", dependencies=[Depends(verify_admin_access)])
+@app.post("/api/harvest-profits")
 async def harvest_profits():
     if not engine or not hasattr(engine, 'income_engine'):
         return JSONResponse(status_code=500, content={"error": "Engine not initialized"})
     result = engine.income_engine.harvest_profits(engine.wallets)
     return result
 
-@app.post("/api/start-race", dependencies=[Depends(verify_admin_access)])
+@app.post("/api/start-race")
 async def start_grand_prix_race():
     if not engine:
         return JSONResponse(status_code=500, content={"error": "Engine not initialized"})
