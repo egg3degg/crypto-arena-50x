@@ -735,11 +735,17 @@ function renderFilteredLeaderboard() {
       const inPlay = Math.max(0, bot.current_equity - bot.available_balance);
       const inPlayBadge = inPlay > 1.0 ? `<span style="color:var(--accent-yellow); font-size:10px; font-weight:700;">🟡 $${inPlay.toFixed(2)} in play</span>` : `<span style="color:var(--text-muted); font-size:10px;">⚪ In Cash ($50)</span>`;
 
+      const isKilled = !isActive && (bot.current_equity <= 0.0 || bot.health_status === 'KILLED_BUST');
+      const cardClass = isKilled ? 'killed' : (isActive ? '' : 'paused');
+      const statusPillClass = isKilled ? 'status-killed' : (isActive ? 'status-active' : 'status-paused');
+      const statusPillText = isKilled ? '💀 KILLED (Bust)' : (isActive ? '● Active' : '⏸ Paused');
+      const healthLabel = isKilled ? '<span style="color:var(--accent-red); font-weight:800;">💀 Eliminated</span>' : (bot.health_status === 'DEGRADING' ? '🟡 Degrading' : (bot.health_status === 'PAUSED_DECAY' ? '🔴 Paused' : '🟢 Healthy'));
+
       html += `
-        <div class="bot-card ${isActive ? '' : 'paused'}" id="card-${bot.bot_id}">
+        <div class="bot-card ${cardClass}" id="card-${bot.bot_id}">
           <div class="card-top-row">
-            <div class="bot-status-pill ${isActive ? 'status-active' : 'status-paused'}" onclick="toggleBotStatus('${bot.bot_id}', ${!isActive})">
-              ${isActive ? '● Active' : '⏸ Paused'}
+            <div class="bot-status-pill ${statusPillClass}" onclick="${isKilled ? '' : `toggleBotStatus('${bot.bot_id}', ${!isActive})`}">
+              ${statusPillText}
             </div>
             <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
               ${catBadge}
@@ -749,7 +755,7 @@ function renderFilteredLeaderboard() {
 
           <div class="bot-name" style="display:flex; justify-content:space-between; align-items:center;">
             <span>${bot.name}</span>
-            <span style="font-size:11px; font-weight:600;">${bot.health_status === 'DEGRADING' ? '🟡 Degrading' : (bot.health_status === 'PAUSED_DECAY' ? '🔴 Paused' : '🟢 Healthy')}</span>
+            <span style="font-size:11px; font-weight:600;">${healthLabel}</span>
           </div>
           <div class="bot-strat-tag">${bot.strategy_name}</div>
 

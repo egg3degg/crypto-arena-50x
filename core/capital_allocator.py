@@ -85,6 +85,19 @@ class CapitalAllocator:
 
         for bot in bots:
             bot_id = bot['bot_id']
+            # If bot was killed/eliminated, freeze allocation to $0
+            if not bot.get('is_active', 1) or float(bot.get('current_balance', 50.0)) <= 0.0:
+                self.bot_allocations[bot_id] = 0.0
+                self.bot_health_status[bot_id] = 'KILLED_BUST'
+                reallocations[bot_id] = {
+                    'stake_usd': 0.0,
+                    'multiplier': 0.0,
+                    'health': 'KILLED_BUST',
+                    'sharpe': 0.0,
+                    'win_rate': 0.0
+                }
+                continue
+
             perf_24h = self.calculate_rolling_sharpe(bot_id, lookback_hours=24)
             sharpe = perf_24h['sharpe']
             win_rate = perf_24h['win_rate']

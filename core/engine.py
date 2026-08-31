@@ -324,6 +324,9 @@ class TournamentEngine:
             for bot_id, wallet in self.wallets.items():
                 wallet.update_open_positions_market_price(sym, t['price'])
 
+        # 1.5. Survival Protocol: Auto-Kill any bot that drops to $0.00 equity
+        self._check_bot_liquidations()
+
         # 2. Run Strategy Decisions for each Bot
         for bot_id, strategy in self.strategies.items():
             bot_record = self.db.get_bot(bot_id)
@@ -515,6 +518,66 @@ class TournamentEngine:
                 new_val=adj['new_value'],
                 reason=adj['reason']
             ))
+
+    def _check_bot_liquidations(self):
+        """
+        Survival Rule: If any bot drops to <= $0.00 total equity (or < $1.00 with 0 open positions),
+        immediately and permanently KILL the bot, mark is_active = 0, close positions, and send alert.
+        """
+        for bot_id, wallet in self.wallets.items():
+            bot_record = self.db.get_bot(bot_id)
+            if not bot_record or not bot_record.get('is_active', 1):
+                continue
+
+            total_equity = wallet.get_total_equity()
+            open_pos = wallet.get_open_positions()
+
+            # Elimination Trigger: Equity <= 0.0 or (< $1.00 with no open positions)
+            is_busted = total_equity <= 0.0 or (total_equity < 1.0 and len(open_pos) == 0 and wallet.available_balance < 1.0)
+
+            if is_busted:
+                b_name = bot_record.get('name', bot_id)
+                logger.warning(f"💀 BOT ELIMINATED: {b_name} reached $0 equity! Killing bot.")
+
+                # 1. Close open positions and zero balances
+                wallet.open_positions.clear()
+                wallet.current_balance = 0.0
+                wallet.available_balance = 0.0
+
+                # 2. Deactivate in DB
+                self.db.set_bot_active_status(bot_id, False)
+                self.db.update_bot_stats(
+                    bot_id=bot_id,
+                    current_balance=0.0,
+                    available_balance=0.0,
+                    total_pnl=-float(bot_record.get('initial_capital', 50.0)),
+                    roi_pct=-100.0,
+                    win_rate=float(bot_record.get('win_rate', 0.0)),
+                    total_trades=int(bot_record.get('total_trades', 0)),
+                    winning_trades=int(bot_record.get('winning_trades', 0)),
+                    losing_trades=int(bot_record.get('losing_trades', 0)),
+                    max_drawdown=100.0,
+                    peak_equity=float(bot_record.get('peak_equity', 50.0))
+                )
+
+                # 3. Log elimination research event
+                self.db.log_research(
+                    category="BOT_ELIMINATED_BUST",
+                    title=f"💀 Bot Eliminated (Bust): {b_name}",
+                    details={
+                        "bot_id": bot_id,
+                        "name": b_name,
+                        "reason": "Equity dropped to $0.00. Permanently killed by survival rules.",
+                        "final_equity": 0.0,
+                        "status": "KILLED"
+                    }
+                )
+
+                # 4. Dispatch Telegram / UI alert
+                asyncio.create_task(self.notifier.notify_research(
+                    title=f"💀 BOT ELIMINATED: {b_name}",
+                    summary=f"Bot **{b_name}** has reached **$0.00** equity and has been **permanently killed** by survival rules."
+                ))
 
     async def start(self):
         """Starts 24/7 autonomous trading loop."""

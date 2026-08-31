@@ -168,6 +168,7 @@ body {
 }
 .bot-card:hover { transform: translateY(-3px); background: var(--bg-card-hover); border-color: rgba(6, 182, 212, 0.4); }
 .bot-card.paused { opacity: 0.7; border-style: dashed; }
+.bot-card.killed { opacity: 0.55; border: 1px solid rgba(239, 68, 68, 0.4); filter: grayscale(40%); }
 
 .card-top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 
@@ -177,6 +178,7 @@ body {
 }
 .status-active { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
 .status-paused { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid var(--accent-red); }
+.status-killed { background: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid #ef4444; }
 
 .rank-badge { padding: 3px 8px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 800; }
 .rank-1 { background: rgba(251, 191, 36, 0.2); color: var(--gold); border: 1px solid var(--gold); }
