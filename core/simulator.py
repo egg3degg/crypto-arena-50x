@@ -263,13 +263,13 @@ class PaperWallet:
             pos['unrealized_pnl'] = unrealized_pnl
             pos['unrealized_pnl_pct'] = unrealized_pnl_pct
 
-            # 1. Multi-Stage Profit: Move Stop-Loss to Breakeven once in profit (+1.2%)
-            if unrealized_pnl_pct >= 1.2 and not pos.get('breakeven_set'):
+            # 1. Multi-Stage Profit: Move Stop-Loss to Breakeven once in profit (+0.6%)
+            if unrealized_pnl_pct >= 0.6 and not pos.get('breakeven_set'):
                 pos['breakeven_set'] = 1
                 if is_short:
-                    pos['stop_loss'] = min(pos.get('stop_loss') or 999999, entry_price * 0.999)
+                    pos['stop_loss'] = min(pos.get('stop_loss') or 999999, entry_price * 0.9995)
                 else:
-                    pos['stop_loss'] = max(pos.get('stop_loss') or 0, entry_price * 1.001)
+                    pos['stop_loss'] = max(pos.get('stop_loss') or 0, entry_price * 1.0005)
 
             # 2. Check Take Profit Trigger
             if pos.get('take_profit'):

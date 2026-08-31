@@ -16,7 +16,7 @@ INITIAL_CAPITAL_USD = 50.00
 FEE_RATE = 0.00075  # 0.075% standard maker/taker fee (realistic Binance/Bybit VIP0)
 SLIPPAGE_RATE = 0.0005  # 0.05% realistic market spread & slippage simulation
 MIN_ORDER_USD = 10.00  # Minimum order size per trade ($10-$25)
-MAX_OPEN_TRADES_PER_BOT = 3  # Allows up to 3 concurrent micro-scalp positions
+MAX_OPEN_TRADES_PER_BOT = 4  # Allows up to 4 concurrent micro-scalp positions
 
 # Trading Pairs (High Liquidity, Majors, Memes & AI)
 TRADING_PAIRS = [
@@ -34,9 +34,9 @@ TRADING_PAIRS = [
 ]
 
 # Market Data Settings
-TIMEFRAME = "5m"  # High-velocity 5-minute scalp timeframe for 5-day sprint
+TIMEFRAME = "3m"  # Ultra-velocity 3-minute scalp timeframe for 24h $200 sprint
 DATA_EXCHANGE = "binance"  # "binance" or "bybit"
-UPDATE_INTERVAL_SECONDS = 8  # Fast 8-second ticker evaluation loop
+UPDATE_INTERVAL_SECONDS = 5  # Hyper-speed 5-second evaluation loop
 CANDLE_LIMIT = 100
 
 # Research & Self-Improvement Interval
