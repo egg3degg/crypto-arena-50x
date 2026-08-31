@@ -254,6 +254,37 @@ async def harvest_profits():
     result = engine.income_engine.harvest_profits(engine.wallets)
     return result
 
+@app.post("/api/start-race", dependencies=[Depends(verify_admin_access)])
+async def start_grand_prix_race():
+    if not engine:
+        return JSONResponse(status_code=500, content={"error": "Engine not initialized"})
+    engine.reset_tournament(capital_per_bot=50.0)
+    return {"status": "SUCCESS", "message": "24H $250 Grand Prix Race started! All bots reset to $50 with unlimited respawns."}
+
+@app.get("/api/race-status")
+async def get_race_status():
+    if not engine:
+        return {}
+    now = time.time()
+    start_time = getattr(engine, 'race_start_time', now)
+    elapsed = now - start_time
+    duration = 86400.0 # 24 hours
+    remaining = max(0.0, duration - elapsed)
+    bots = engine.get_leaderboard_data()
+    top_bot = bots[0] if bots else {}
+    total_respawns = sum(int(b.get('respawn_count') or 0) for b in bots)
+
+    return {
+        "race_start_time": start_time,
+        "elapsed_seconds": round(elapsed, 1),
+        "remaining_seconds": round(remaining, 1),
+        "target_capital_usd": 250.0,
+        "top_bot_name": top_bot.get('name', '---'),
+        "top_bot_equity": top_bot.get('current_equity', 50.0),
+        "total_respawns": total_respawns,
+        "is_active": True
+    }
+
 @app.get("/api/market-overview")
 async def get_market_overview():
     if not engine:

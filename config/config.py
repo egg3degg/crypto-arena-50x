@@ -34,9 +34,9 @@ TRADING_PAIRS = [
 ]
 
 # Market Data Settings
-TIMEFRAME = "3m"  # Ultra-velocity 3-minute scalp timeframe for 24h $200 sprint
+TIMEFRAME = "1m"  # 1-minute ultra-velocity scalp timeframe for 24h $250 Grand Prix
 DATA_EXCHANGE = "binance"  # "binance" or "bybit"
-UPDATE_INTERVAL_SECONDS = 5  # Hyper-speed 5-second evaluation loop
+UPDATE_INTERVAL_SECONDS = 3  # Hyper-speed 3-second evaluation loop
 CANDLE_LIMIT = 100
 
 # Research & Self-Improvement Interval

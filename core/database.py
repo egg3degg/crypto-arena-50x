@@ -57,9 +57,15 @@ class ArenaDatabase:
                     max_drawdown REAL DEFAULT 0.0,
                     peak_equity REAL DEFAULT 50.0,
                     is_active INTEGER DEFAULT 1,
+                    respawn_count INTEGER DEFAULT 0,
                     created_at TEXT
                 )
             """)
+
+            try:
+                cursor.execute("ALTER TABLE bots ADD COLUMN respawn_count INTEGER DEFAULT 0")
+            except Exception:
+                pass
 
             # Positions Table
             cursor.execute("""
@@ -254,9 +260,33 @@ class ArenaDatabase:
                     winning_trades = 0,
                     losing_trades = 0,
                     max_drawdown = 0.0,
-                    peak_equity = initial_capital
+                    peak_equity = initial_capital,
+                    is_active = 1,
+                    respawn_count = 0
             """)
             conn.commit()
+
+    def respawn_bot(self, bot_id: str, capital: float = 50.0) -> int:
+        """Resets bot balance to starting capital and increments respawn_count."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT respawn_count FROM bots WHERE bot_id = ?", (bot_id,))
+            row = cursor.fetchone()
+            current_respawns = row['respawn_count'] if row and 'respawn_count' in row.keys() and row['respawn_count'] is not None else 0
+            new_count = current_respawns + 1
+            cursor.execute("""
+                UPDATE bots SET
+                    current_balance = ?,
+                    available_balance = ?,
+                    total_pnl = 0.0,
+                    roi_pct = 0.0,
+                    is_active = 1,
+                    respawn_count = ?
+                WHERE bot_id = ?
+            """, (capital, capital, new_count, bot_id))
+            cursor.execute("DELETE FROM positions WHERE bot_id = ?", (bot_id,))
+            conn.commit()
+            return new_count
 
     # --- Positions Management ---
     def save_position(self, pos: Dict[str, Any]):

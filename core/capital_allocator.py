@@ -121,17 +121,17 @@ class CapitalAllocator:
                 multiplier = 1.0 # Standard base
                 health = 'HEALTHY'
 
-            # Dynamic Fractional Compounding: Scale base stake with growing equity (55% of total equity)
+            # Dynamic Fractional Compounding: Scale base stake with growing equity (60% of total equity)
             bot_equity = float(bot.get('current_balance', 50.0))
-            dynamic_base = max(self.base_stake_usd, bot_equity * 0.55)
+            dynamic_base = max(self.base_stake_usd, bot_equity * 0.60)
 
             # Apply Hard Rule: Synthetic/Simulated Feeds capped at max $12.50
             if bot_id in self.synthetic_feed_bots:
                 target_stake = min(12.50, round(self.base_stake_usd * min(multiplier, 0.5), 2))
             else:
                 target_stake = round(dynamic_base * multiplier, 2)
-                # Ensure stake is bounded between $10 floor and 65% of bot equity
-                target_stake = max(10.0, min(max(45.0, bot_equity * 0.65), target_stake))
+                # Ensure stake is bounded between $10 floor and 75% of bot equity for high-speed sprint
+                target_stake = max(10.0, min(max(50.0, bot_equity * 0.75), target_stake))
 
             self.bot_allocations[bot_id] = target_stake
             self.bot_health_status[bot_id] = health

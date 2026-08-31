@@ -78,6 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchInitialData();
   fetchPolymarketData();
   fetchSentimentData();
+  initRaceCountdownClock();
 
   // Low-frequency safety fallback polling only if WebSocket is disconnected
   setInterval(() => {
@@ -773,8 +774,8 @@ function renderFilteredLeaderboard() {
               <span class="v">${bot.win_rate.toFixed(1)}% <small style="color:var(--text-muted)">(${bot.winning_trades}W / ${bot.losing_trades}L)</small></span>
             </div>
             <div class="stat-item">
-              <span class="k">Allocated Stake</span>
-              <span class="v" style="color:var(--accent-cyan); font-weight:700;">$${(bot.allocated_stake_usd || 25.0).toFixed(2)}</span>
+              <span class="k">Respawns</span>
+              <span class="v" style="color:${(bot.respawn_count || 0) > 0 ? 'var(--accent-yellow)' : 'var(--text-muted)'}; font-weight:700;">🔄 ${bot.respawn_count || 0}</span>
             </div>
           </div>
 
@@ -810,9 +811,9 @@ function renderFilteredLeaderboard() {
   if (goalEl && activeBotsCache.length) {
     const maxEq = Math.max(...activeBotsCache.map(b => Number(b.current_equity || 50.0)), 50.0);
     const topBot = activeBotsCache.find(b => Number(b.current_equity || 50.0) === maxEq) || activeBotsCache[0];
-    const pct = Math.min(100, Math.round((maxEq / 200.0) * 100));
-    if (maxEq >= 200.0) {
-      goalEl.innerHTML = `🎉 <span style="color:var(--accent-green);">$${maxEq.toFixed(2)} (⚡ $200 HIT!)</span>`;
+    const pct = Math.min(100, Math.round((maxEq / 250.0) * 100));
+    if (maxEq >= 250.0) {
+      goalEl.innerHTML = `🎉 <span style="color:var(--accent-green);">$${maxEq.toFixed(2)} (🏁 $250 HIT!)</span>`;
     } else {
       goalEl.innerHTML = `${topBot.name}: <strong>$${maxEq.toFixed(2)}</strong> (${pct}%)`;
     }
@@ -1653,5 +1654,46 @@ async function triggerProfitHarvest() {
     }
   } catch (err) {
     alert('Error harvesting profit: ' + err.message);
+  }
+}
+
+// --- 24H $250 GRAND PRIX RACE CLOCK & CONTROLLER ---
+let raceRemainingSeconds = 86400;
+
+function initRaceCountdownClock() {
+  async function syncRaceStatus() {
+    try {
+      const res = await fetch(`${API_BASE}/api/race-status`);
+      const data = await res.json();
+      if (data && data.remaining_seconds !== undefined) {
+        raceRemainingSeconds = data.remaining_seconds;
+      }
+    } catch (e) {}
+  }
+  syncRaceStatus();
+  setInterval(syncRaceStatus, 10000);
+
+  setInterval(() => {
+    if (raceRemainingSeconds > 0) raceRemainingSeconds--;
+    const clockEl = document.getElementById('header-race-clock');
+    if (clockEl) {
+      const hrs = Math.floor(raceRemainingSeconds / 3600);
+      const mins = Math.floor((raceRemainingSeconds % 3600) / 60);
+      const secs = Math.floor(raceRemainingSeconds % 60);
+      clockEl.textContent = `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+  }, 1000);
+}
+
+async function triggerStartGrandPrixRace() {
+  if (confirm("🏁 Start the 24-Hour $250 Grand Prix Race?\nAll bots will reset to $50.00 with unlimited respawns and hyper-speed 1m execution!")) {
+    try {
+      const res = await apiPost('/api/start-race', {});
+      alert(res.message || 'Race started!');
+      fetchInitialData();
+      fetchPerformanceReport();
+    } catch (err) {
+      alert('Error starting race: ' + err.message);
+    }
   }
 }

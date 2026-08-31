@@ -521,63 +521,69 @@ class TournamentEngine:
 
     def _check_bot_liquidations(self):
         """
-        Survival Rule: If any bot drops to <= $0.00 total equity (or < $1.00 with 0 open positions),
-        immediately and permanently KILL the bot, mark is_active = 0, close positions, and send alert.
+        Grand Prix Rule: If any bot drops to <= $0.00 total equity (or < $1.00 with 0 open positions),
+        instantly RESPAWN the bot with fresh $50.00 capital, increment respawn_count, and notify.
         """
         for bot_id, wallet in self.wallets.items():
             bot_record = self.db.get_bot(bot_id)
-            if not bot_record or not bot_record.get('is_active', 1):
+            if not bot_record:
                 continue
 
             total_equity = wallet.get_total_equity()
             open_pos = wallet.get_open_positions()
 
-            # Elimination Trigger: Equity <= 0.0 or (< $1.00 with no open positions)
+            # Elimination / Respawn Trigger: Equity <= 0.0 or (< $1.00 with no open positions)
             is_busted = total_equity <= 0.0 or (total_equity < 1.0 and len(open_pos) == 0 and wallet.available_balance < 1.0)
 
             if is_busted:
                 b_name = bot_record.get('name', bot_id)
-                logger.warning(f"💀 BOT ELIMINATED: {b_name} reached $0 equity! Killing bot.")
+                logger.warning(f"🔄 BOT RESPAWNED: {b_name} reached $0 equity! Unlimited respawns active -> Instant Respawn with fresh $50.")
 
-                # 1. Close open positions and zero balances
+                # 1. Clear open positions and restore balances to $50.00
                 wallet.open_positions.clear()
-                wallet.current_balance = 0.0
-                wallet.available_balance = 0.0
+                wallet.current_balance = 50.0
+                wallet.available_balance = 50.0
+                wallet.total_pnl = 0.0
 
-                # 2. Deactivate in DB
-                self.db.set_bot_active_status(bot_id, False)
-                self.db.update_bot_stats(
-                    bot_id=bot_id,
-                    current_balance=0.0,
-                    available_balance=0.0,
-                    total_pnl=-float(bot_record.get('initial_capital', 50.0)),
-                    roi_pct=-100.0,
-                    win_rate=float(bot_record.get('win_rate', 0.0)),
-                    total_trades=int(bot_record.get('total_trades', 0)),
-                    winning_trades=int(bot_record.get('winning_trades', 0)),
-                    losing_trades=int(bot_record.get('losing_trades', 0)),
-                    max_drawdown=100.0,
-                    peak_equity=float(bot_record.get('peak_equity', 50.0))
-                )
+                # 2. Respawn in DB and get new respawn count
+                new_respawns = self.db.respawn_bot(bot_id, capital=50.0)
 
-                # 3. Log elimination research event
+                # 3. Log respawn research event
                 self.db.log_research(
-                    category="BOT_ELIMINATED_BUST",
-                    title=f"💀 Bot Eliminated (Bust): {b_name}",
+                    category="BOT_RESPAWNED",
+                    title=f"🔄 Bot Respawn #{new_respawns}: {b_name}",
                     details={
                         "bot_id": bot_id,
                         "name": b_name,
-                        "reason": "Equity dropped to $0.00. Permanently killed by survival rules.",
-                        "final_equity": 0.0,
-                        "status": "KILLED"
+                        "respawn_count": new_respawns,
+                        "reason": "Equity hit $0.00. Instantly respawned with fresh $50 for 24h Grand Prix.",
+                        "new_balance": 50.0
                     }
                 )
 
                 # 4. Dispatch Telegram / UI alert
                 asyncio.create_task(self.notifier.notify_research(
-                    title=f"💀 BOT ELIMINATED: {b_name}",
-                    summary=f"Bot **{b_name}** has reached **$0.00** equity and has been **permanently killed** by survival rules."
+                    title=f"🔄 BOT RESPAWN #{new_respawns}: {b_name}",
+                    summary=f"Bot **{b_name}** went to $0 and has **instantly respawned** (Respawn #{new_respawns}) with fresh **$50.00** to continue the 24h $250 Grand Prix!"
                 ))
+
+    def reset_tournament(self, capital_per_bot: float = 50.0):
+        """Resets all bots, wallets, and database records for fresh 24h Grand Prix."""
+        self.db.reset_tournament(capital_per_bot)
+        self.race_start_time = time.time()
+        for bot_id, wallet in self.wallets.items():
+            wallet.initial_capital = capital_per_bot
+            wallet.current_balance = capital_per_bot
+            wallet.available_balance = capital_per_bot
+            wallet.peak_equity = capital_per_bot
+            wallet.max_drawdown = 0.0
+            wallet.total_pnl = 0.0
+            wallet.total_trades = 0
+            wallet.winning_trades = 0
+            wallet.losing_trades = 0
+            wallet.open_positions.clear()
+        self.capital_allocator.rebalance_allocations(self.strategies, force=True)
+        logger.info(f"🏆 24H $250 GRAND PRIX RACE STARTED! All bots reset to ${capital_per_bot:.2f} with unlimited respawns.")
 
     async def start(self):
         """Starts 24/7 autonomous trading loop."""
@@ -633,6 +639,7 @@ class TournamentEngine:
                 'allocated_stake_usd': allocated_stake,
                 'open_positions_count': len(open_pos),
                 'is_active': bool(b.get('is_active', 1)),
+                'respawn_count': int(b.get('respawn_count') or 0),
                 'active_strategy_params': self.strategies[bot_id].params if bot_id in self.strategies else {}
             })
 
