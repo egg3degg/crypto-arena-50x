@@ -42,19 +42,19 @@ class BreakoutHunterStrategy(BaseStrategy):
             for pos in matching_positions:
                 is_short = (pos.get('side') == 'SHORT')
                 if is_short:
-                    if latest['close'] > latest['donchian_mid']:
+                    if latest['close'] > latest['donchian_high']:
                         return StrategyDecision(
                             action=Signal.COVER,
                             symbol=symbol,
-                            reason=f"BreakoutHunter Short TP: Price reclaimed Donchian Mid (${latest['donchian_mid']:.2f})",
+                            reason=f"BreakoutHunter Short Exit: Price pierced Donchian High (${latest['donchian_high']:.2f})",
                             confidence=0.82
                         )
                 else:
-                    if latest['close'] < latest['donchian_mid']:
+                    if latest['close'] < latest['donchian_low']:
                         return StrategyDecision(
                             action=Signal.SELL,
                             symbol=symbol,
-                            reason=f"BreakoutHunter Long Exit: Price lost Donchian Mid (${latest['donchian_mid']:.2f})",
+                            reason=f"BreakoutHunter Long Exit: Price lost Donchian Low (${latest['donchian_low']:.2f})",
                             confidence=0.82
                         )
             return StrategyDecision(Signal.HOLD, symbol, reason="BreakoutHunter: Holding breakout position")
