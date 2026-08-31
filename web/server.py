@@ -259,7 +259,11 @@ async def start_grand_prix_race():
     if not engine:
         return JSONResponse(status_code=500, content={"error": "Engine not initialized"})
     try:
-        engine.reset_tournament(capital_per_bot=50.0)
+        if hasattr(engine, 'reset_tournament'):
+            try:
+                engine.reset_tournament(capital_per_bot=50.0)
+            except TypeError:
+                engine.reset_tournament(50.0)
         return {"status": "SUCCESS", "message": "24H $250 Grand Prix Race started! All bots reset to $50 with unlimited respawns."}
     except Exception as e:
         logger.error(f"Error starting race: {e}", exc_info=True)
