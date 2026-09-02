@@ -246,6 +246,7 @@ class ArenaDatabase:
             cursor = conn.cursor()
             try:
                 cursor.execute("ALTER TABLE bots ADD COLUMN respawn_count INTEGER DEFAULT 0")
+                conn.commit()
             except Exception:
                 pass
             cursor.execute("DELETE FROM positions")
@@ -253,21 +254,37 @@ class ArenaDatabase:
             cursor.execute("DELETE FROM equity_snapshots")
             cursor.execute("DELETE FROM parameter_adjustments")
             cursor.execute("DELETE FROM research_logs")
-            cursor.execute("""
-                UPDATE bots SET
-                    current_balance = initial_capital,
-                    available_balance = initial_capital,
-                    total_pnl = 0.0,
-                    roi_pct = 0.0,
-                    win_rate = 0.0,
-                    total_trades = 0,
-                    winning_trades = 0,
-                    losing_trades = 0,
-                    max_drawdown = 0.0,
-                    peak_equity = initial_capital,
-                    is_active = 1,
-                    respawn_count = 0
-            """)
+            try:
+                cursor.execute("""
+                    UPDATE bots SET
+                        current_balance = initial_capital,
+                        available_balance = initial_capital,
+                        total_pnl = 0.0,
+                        roi_pct = 0.0,
+                        win_rate = 0.0,
+                        total_trades = 0,
+                        winning_trades = 0,
+                        losing_trades = 0,
+                        max_drawdown = 0.0,
+                        peak_equity = initial_capital,
+                        is_active = 1,
+                        respawn_count = 0
+                """)
+            except Exception:
+                cursor.execute("""
+                    UPDATE bots SET
+                        current_balance = initial_capital,
+                        available_balance = initial_capital,
+                        total_pnl = 0.0,
+                        roi_pct = 0.0,
+                        win_rate = 0.0,
+                        total_trades = 0,
+                        winning_trades = 0,
+                        losing_trades = 0,
+                        max_drawdown = 0.0,
+                        peak_equity = initial_capital,
+                        is_active = 1
+                """)
             conn.commit()
 
     def respawn_bot(self, bot_id: str, capital: float = 50.0) -> int:
