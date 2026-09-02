@@ -489,6 +489,31 @@ class TournamentEngine:
             self.last_self_improve_time = now
             self.run_self_improvement_cycle()
 
+        # 6. Hourly Death Match & Operation Audit Logging
+        if not hasattr(self, 'last_hourly_audit_time'):
+            self.last_hourly_audit_time = now
+        elif now - self.last_hourly_audit_time >= 3600.0:
+            self.last_hourly_audit_time = now
+            elapsed = now - getattr(self, 'race_start_time', now)
+            hours_left = max(0.0, (86400.0 - elapsed) / 3600.0)
+            leaderboard = self.get_leaderboard_data()
+            top_b = leaderboard[0] if leaderboard else {}
+            has_survivor = any(b.get('current_equity', 0) >= 100.0 for b in leaderboard)
+            self.db.log_research(
+                category="DEATHMATCH_HOURLY_AUDIT",
+                title=f"⏳ 24H Match Audit: {hours_left:.1f}h Left | Top: {top_b.get('name', '---')} (${top_b.get('current_equity', 50.0):.2f})",
+                details={
+                    "hours_remaining": round(hours_left, 2),
+                    "elapsed_hours": round(elapsed / 3600.0, 2),
+                    "top_bot": top_b.get('name', '---'),
+                    "top_equity": top_b.get('current_equity', 50.0),
+                    "target_equity": 100.0,
+                    "target_reached": has_survivor,
+                    "active_bots_count": len(leaderboard)
+                }
+            )
+            logger.info(f"📊 [DEATHMATCH AUDIT] {hours_left:.1f}h remaining | Top: {top_b.get('name')} at ${top_b.get('current_equity', 50.0):.2f} (Target: $100.00)")
+
     async def run_research_cycle(self, symbol_dfs: Optional[Dict[str, pd.DataFrame]] = None):
         """Runs autonomous market regime scan & on-chain smart wallet intelligence."""
         if not symbol_dfs:
