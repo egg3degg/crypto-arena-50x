@@ -254,6 +254,10 @@ async def harvest_profits():
     result = engine.income_engine.harvest_profits(engine.wallets)
     return result
 
+@app.get("/api/ping")
+async def ping():
+    return {"version": "1.2.0-survival-100", "status": "OK", "timestamp": time.time()}
+
 @app.post("/api/start-race")
 async def start_grand_prix_race():
     if not engine:
@@ -261,7 +265,23 @@ async def start_grand_prix_race():
     try:
         engine.race_start_time = time.time()
         try:
-            engine.db.reset_tournament(50.0)
+            with engine.db._get_connection() as conn:
+                cur = conn.cursor()
+                try:
+                    cur.execute("ALTER TABLE bots ADD COLUMN respawn_count INTEGER DEFAULT 0")
+                    conn.commit()
+                except Exception:
+                    pass
+                cur.execute("DELETE FROM positions")
+                cur.execute("DELETE FROM trades")
+                cur.execute("DELETE FROM equity_snapshots")
+                cur.execute("DELETE FROM parameter_adjustments")
+                cur.execute("DELETE FROM research_logs")
+                try:
+                    cur.execute("UPDATE bots SET current_balance = initial_capital, available_balance = initial_capital, total_pnl = 0.0, roi_pct = 0.0, win_rate = 0.0, total_trades = 0, winning_trades = 0, losing_trades = 0, max_drawdown = 0.0, peak_equity = initial_capital, is_active = 1, respawn_count = 0")
+                except Exception:
+                    cur.execute("UPDATE bots SET current_balance = initial_capital, available_balance = initial_capital, total_pnl = 0.0, roi_pct = 0.0, win_rate = 0.0, total_trades = 0, winning_trades = 0, losing_trades = 0, max_drawdown = 0.0, peak_equity = initial_capital, is_active = 1")
+                conn.commit()
         except Exception as dbe:
             logger.warning(f"DB reset warning: {dbe}")
         for bot_id, wallet in engine.wallets.items():
