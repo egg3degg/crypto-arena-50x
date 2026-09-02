@@ -207,14 +207,25 @@ class ArenaDatabase:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM bots ORDER BY total_pnl DESC")
-            return [dict(row) for row in cursor.fetchall()]
+            bots = []
+            for row in cursor.fetchall():
+                d = dict(row)
+                if 'respawn_count' not in d:
+                    d['respawn_count'] = 0
+                bots.append(d)
+            return bots
 
     def get_bot(self, bot_id: str) -> Optional[Dict[str, Any]]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM bots WHERE bot_id = ?", (bot_id,))
             row = cursor.fetchone()
-            return dict(row) if row else None
+            if not row:
+                return None
+            d = dict(row)
+            if 'respawn_count' not in d:
+                d['respawn_count'] = 0
+            return d
 
     def update_bot_stats(self, bot_id: str, current_balance: float, available_balance: float,
                          total_pnl: float, roi_pct: float, win_rate: float,
@@ -307,22 +318,37 @@ class ArenaDatabase:
             cursor = conn.cursor()
             try:
                 cursor.execute("ALTER TABLE bots ADD COLUMN respawn_count INTEGER DEFAULT 0")
+                conn.commit()
             except Exception:
                 pass
-            cursor.execute("SELECT respawn_count FROM bots WHERE bot_id = ?", (bot_id,))
+            cursor.execute("SELECT * FROM bots WHERE bot_id = ?", (bot_id,))
             row = cursor.fetchone()
-            current_respawns = row['respawn_count'] if row and 'respawn_count' in row.keys() and row['respawn_count'] is not None else 0
+            current_respawns = 0
+            if row:
+                d = dict(row)
+                current_respawns = int(d.get('respawn_count') or 0)
             new_count = current_respawns + 1
-            cursor.execute("""
-                UPDATE bots SET
-                    current_balance = ?,
-                    available_balance = ?,
-                    total_pnl = 0.0,
-                    roi_pct = 0.0,
-                    is_active = 1,
-                    respawn_count = ?
-                WHERE bot_id = ?
-            """, (capital, capital, new_count, bot_id))
+            try:
+                cursor.execute("""
+                    UPDATE bots SET
+                        current_balance = ?,
+                        available_balance = ?,
+                        total_pnl = 0.0,
+                        roi_pct = 0.0,
+                        is_active = 1,
+                        respawn_count = ?
+                    WHERE bot_id = ?
+                """, (capital, capital, new_count, bot_id))
+            except Exception:
+                cursor.execute("""
+                    UPDATE bots SET
+                        current_balance = ?,
+                        available_balance = ?,
+                        total_pnl = 0.0,
+                        roi_pct = 0.0,
+                        is_active = 1
+                    WHERE bot_id = ?
+                """, (capital, capital, bot_id))
             cursor.execute("DELETE FROM positions WHERE bot_id = ?", (bot_id,))
             conn.commit()
             return new_count
