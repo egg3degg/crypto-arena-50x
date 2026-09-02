@@ -244,6 +244,10 @@ class ArenaDatabase:
     def reset_tournament(self, capital_per_bot: float = 50.0):
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            try:
+                cursor.execute("ALTER TABLE bots ADD COLUMN respawn_count INTEGER DEFAULT 0")
+            except Exception:
+                pass
             cursor.execute("DELETE FROM positions")
             cursor.execute("DELETE FROM trades")
             cursor.execute("DELETE FROM equity_snapshots")
@@ -270,6 +274,10 @@ class ArenaDatabase:
         """Resets bot balance to starting capital and increments respawn_count."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            try:
+                cursor.execute("ALTER TABLE bots ADD COLUMN respawn_count INTEGER DEFAULT 0")
+            except Exception:
+                pass
             cursor.execute("SELECT respawn_count FROM bots WHERE bot_id = ?", (bot_id,))
             row = cursor.fetchone()
             current_respawns = row['respawn_count'] if row and 'respawn_count' in row.keys() and row['respawn_count'] is not None else 0
