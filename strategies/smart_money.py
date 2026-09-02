@@ -9,11 +9,11 @@ from .base_strategy import BaseStrategy, StrategyDecision, Signal
 class SmartMoneyTrackerStrategy(BaseStrategy):
     def __init__(self, bot_id: str = "bot_5_smartmoney", params: Dict[str, Any] = None):
         default_params = {
-            'min_smart_score': 65.0,      # Smart Money Score threshold (0-100)
-            'volume_delta_min': 1.4,      # 1.4x volume surge
-            'stop_loss_pct': 0.020,       # 2.0% SL
-            'take_profit_pct': 0.048,     # 4.8% TP
-            'trailing_stop_pct': 0.015,   # 1.5% Trailing SL
+            'min_smart_score': 45.0,      # Smart Money Score threshold (0-100)
+            'volume_delta_min': 1.15,     # 1.15x volume surge
+            'stop_loss_pct': 0.016,       # 1.6% SL
+            'take_profit_pct': 0.035,     # 3.5% TP
+            'trailing_stop_pct': 0.010,   # 1.0% Trailing SL
             'stake_usd': 25.0             # $25 per smart money setup
         }
         if params:

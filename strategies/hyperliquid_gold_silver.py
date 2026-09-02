@@ -45,26 +45,27 @@ class HyperliquidGoldSilverStrategy(BaseStrategy):
         price = ticker.get('price', last_row['close'])
         ema_20 = last_row.get('ema_20', 0.0)
         ema_50 = last_row.get('ema_50', 0.0)
-        rsi = last_row.get('rsi_14', 50.0)
+        rsi = last_row.get('rsi', last_row.get('rsi_14', 50.0))
         adx = last_row.get('adx', 20.0)
-        has_open = any(p['symbol'] == symbol for p in open_positions)
+        matching = [p for p in open_positions if p['symbol'] == symbol]
+        has_open = len(matching) > 0
 
         # Exit logic
         if has_open:
-            matching = [p for p in open_positions if p['symbol'] == symbol]
             for p in matching:
                 unrealized_pct = p.get('unrealized_pnl_pct', 0.0) / 100.0
                 if unrealized_pct >= self.params['take_profit_pct']:
-                    return StrategyDecision(action=Signal.SELL, reason=f"Hyperliquid Gold/Silver Target Hit (+{unrealized_pct*100:.1f}%)")
+                    return StrategyDecision(action=Signal.SELL, symbol=symbol, reason=f"Hyperliquid Gold/Silver Target Hit (+{unrealized_pct*100:.1f}%)")
                 if unrealized_pct <= -self.params['stop_loss_pct']:
-                    return StrategyDecision(action=Signal.SELL, reason=f"Hyperliquid Stop-Loss Hit ({unrealized_pct*100:.1f}%)")
+                    return StrategyDecision(action=Signal.SELL, symbol=symbol, reason=f"Hyperliquid Stop-Loss Hit ({unrealized_pct*100:.1f}%)")
 
         # Entry logic: Commodity Momentum Surge
         if not has_open:
             # Bullish trend alignment in precious metals
-            if price > ema_20 > ema_50 and rsi > 52 and adx >= self.params['min_adx']:
+            if (price > ema_20 > ema_50 or rsi > 50) and adx >= 15.0:
                 return StrategyDecision(
                     action=Signal.BUY,
+                    symbol=symbol,
                     stake_usd=self.params['stake_usd'],
                     stop_loss_pct=self.params['stop_loss_pct'],
                     take_profit_pct=self.params['take_profit_pct'],
@@ -72,4 +73,4 @@ class HyperliquidGoldSilverStrategy(BaseStrategy):
                     reason=f"Hyperliquid Precious Metals Trend Surge on {symbol} (Price: ${price:.2f} > EMA 20/50, RSI: {rsi:.1f})"
                 )
 
-        return StrategyDecision(action=Signal.HOLD, reason="Commodity prices stabilizing")
+        return StrategyDecision(action=Signal.HOLD, symbol=symbol, reason="Commodity prices stabilizing")

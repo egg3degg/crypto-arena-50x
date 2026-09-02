@@ -547,6 +547,8 @@ class TournamentEngine:
 
                 # 2. Respawn in DB and get new respawn count
                 new_respawns = self.db.respawn_bot(bot_id, capital=50.0)
+                self.capital_allocator.bot_allocations[bot_id] = 25.0
+                self.capital_allocator.bot_health_status[bot_id] = 'HEALTHY'
 
                 # 3. Log respawn research event
                 self.db.log_research(

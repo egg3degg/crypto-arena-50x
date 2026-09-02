@@ -38,46 +38,43 @@ class PolyMicroBotHunterStrategy(BaseStrategy):
             return StrategyDecision(action=Signal.HOLD, symbol=symbol, reason="Insufficient micro capital")
 
         # Exit logic
-        for p in open_positions:
+        matching = [p for p in open_positions if p['symbol'] == symbol]
+        for p in matching:
             unrealized_pct = p.get('unrealized_pnl_pct', 0.0) / 100.0
             if unrealized_pct >= self.params['take_profit_pct']:
                 return StrategyDecision(
                     action=Signal.SELL,
-                    symbol=p['symbol'],
+                    symbol=symbol,
                     reason=f"Micro Algo Scalp Hit (+{unrealized_pct*100:.1f}%)"
                 )
             if unrealized_pct <= -self.params['stop_loss_pct']:
                 return StrategyDecision(
                     action=Signal.SELL,
-                    symbol=p['symbol'],
+                    symbol=symbol,
                     reason=f"Micro Algo Stop-Loss Hit ({unrealized_pct*100:.1f}%)"
                 )
 
         if not whale_bets:
             return StrategyDecision(action=Signal.HOLD, symbol=symbol, reason="Scanning Algo Bot Wallets")
 
-        # Filter specifically for ALGO_BOT tier
-        algo_bets = [b for b in whale_bets if b.get('tier') == 'ALGO_BOT']
-        for bet in algo_bets:
-            win_rate = bet.get('win_rate', 0.0)
-            bot_name = bet.get('whale_name', 'AlgoBot')
-            q = bet.get('market_question', '')
-            choice = bet.get('outcome_choice', 'YES')
-            entry_price = bet.get('entry_price', 0.50)
-            algo_stake = bet.get('whale_stake_usd', 8.0)
+        # Filter specifically for ALGO_BOT tier or any rapid micro bet
+        if len(matching) == 0:
+            for bet in whale_bets:
+                win_rate = bet.get('win_rate', 0.0)
+                bot_name = bet.get('whale_name', 'AlgoBot')
+                q = bet.get('market_question', '')
+                choice = bet.get('outcome_choice', 'YES')
+                entry_price = bet.get('entry_price', 0.50)
+                algo_stake = bet.get('whale_stake_usd', 8.0)
 
-            poly_symbol = f"ALGO_{choice}"
-            # Check if this specific bet is already active
-            has_pos = any(p['symbol'] == poly_symbol for p in open_positions)
-
-            if not has_pos and win_rate >= self.params['min_algo_winrate']:
-                return StrategyDecision(
-                    action=Signal.BUY,
-                    symbol=poly_symbol,
-                    stake_usd=min(self.params['stake_usd'], available_balance),
-                    stop_loss_pct=self.params['stop_loss_pct'],
-                    take_profit_pct=self.params['take_profit_pct'],
-                    reason=f"🤖 Copied Algo-Bot {bot_name} (${algo_stake:.2f} txn, {win_rate}% win) on '{q[:34]}...' -> {choice} @ ${entry_price:.2f}"
-                )
+                if win_rate >= 60.0:
+                    return StrategyDecision(
+                        action=Signal.BUY,
+                        symbol=symbol,
+                        stake_usd=min(self.params['stake_usd'], available_balance),
+                        stop_loss_pct=self.params['stop_loss_pct'],
+                        take_profit_pct=self.params['take_profit_pct'],
+                        reason=f"🤖 Copied Algo-Bot {bot_name} (${algo_stake:.2f} txn, {win_rate}% win) on '{q[:34]}...' -> {choice} @ ${entry_price:.2f}"
+                    )
 
         return StrategyDecision(action=Signal.HOLD, symbol=symbol, reason="Waiting for $5-$10 algo bot signals")

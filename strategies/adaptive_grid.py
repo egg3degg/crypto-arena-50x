@@ -9,12 +9,12 @@ from .base_strategy import BaseStrategy, StrategyDecision, Signal
 class AdaptiveGridStrategy(BaseStrategy):
     def __init__(self, bot_id: str = "bot_4_adaptivegrid", params: Dict[str, Any] = None):
         default_params = {
-            'grid_step_pct': 0.015,       # 1.5% grid spacing between levels
+            'grid_step_pct': 0.004,       # 0.4% rapid grid spacing on 1m candles
             'grid_levels': 2,             # Up to 2 active grid positions for $50 capital
-            'take_profit_pct': 0.022,     # 2.2% grid take profit per level
-            'stop_loss_pct': 0.038,       # 3.8% emergency grid stop loss
+            'take_profit_pct': 0.008,     # 0.8% grid take profit per level
+            'stop_loss_pct': 0.018,       # 1.8% grid stop loss
             'trailing_stop_pct': None,    # Fixed profit targets for grid
-            'stake_per_grid_usd': 15.0    # $15 per grid tier ($30 total)
+            'stake_per_grid_usd': 20.0    # $20 per grid tier
         }
         if params:
             default_params.update(params)
@@ -55,22 +55,20 @@ class AdaptiveGridStrategy(BaseStrategy):
         if available_balance < 10.0 or stake < 10.0:
             return StrategyDecision(Signal.HOLD, symbol, reason="Insufficient balance for grid order")
 
-        # Grid Calculation:
-        # Dynamic center is EMA 20
-        center_price = latest['ema_20']
-        atr_grid_step = max(self.params['grid_step_pct'], (latest['atr'] / current_price) * 0.8)
+        center_price = latest.get('ema_20', current_price)
+        rsi = latest.get('rsi', 50.0)
 
         if active_grid_count == 0:
-            # Level 1 Entry: Price is between 0.5% and 2.0% below EMA 20 in a ranging market
-            if current_price <= center_price * (1 - atr_grid_step * 0.5) and latest['adx'] < 35.0:
+            # Level 1 Entry: Price slightly under EMA 20 or RSI under 50 in ranging market
+            if (current_price <= center_price * 0.998 or rsi <= 48.0) and latest.get('adx', 20.0) < 40.0:
                 return StrategyDecision(
                     action=Signal.BUY,
                     symbol=symbol,
                     stake_usd=stake,
                     stop_loss_pct=self.params['stop_loss_pct'],
                     take_profit_pct=self.params['take_profit_pct'],
-                    reason=f"AdaptiveGrid Level 1 Entry ({atr_grid_step*100:.2f}% below EMA 20)",
-                    confidence=0.78,
+                    reason=f"AdaptiveGrid Level 1 Entry (RSI: {rsi:.1f}, Price near EMA 20)",
+                    confidence=0.80,
                     metadata={'grid_tier': 1, 'center_price': center_price}
                 )
         elif active_grid_count == 1:

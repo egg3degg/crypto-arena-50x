@@ -38,44 +38,42 @@ class PolyLeaderWhaleStrategy(BaseStrategy):
             return StrategyDecision(action=Signal.HOLD, symbol=symbol, reason="Insufficient leader copy capital")
 
         # Exit logic
-        for p in open_positions:
+        matching = [p for p in open_positions if p['symbol'] == symbol]
+        for p in matching:
             unrealized_pct = p.get('unrealized_pnl_pct', 0.0) / 100.0
             if unrealized_pct >= self.params['take_profit_pct']:
                 return StrategyDecision(
                     action=Signal.SELL,
-                    symbol=p['symbol'],
+                    symbol=symbol,
                     reason=f"Leaderboard Whale Target Hit (+{unrealized_pct*100:.1f}%)"
                 )
             if unrealized_pct <= -self.params['stop_loss_pct']:
                 return StrategyDecision(
                     action=Signal.SELL,
-                    symbol=p['symbol'],
+                    symbol=symbol,
                     reason=f"Leaderboard Stop-Loss Protected ({unrealized_pct*100:.1f}%)"
                 )
 
         if not whale_bets:
             return StrategyDecision(action=Signal.HOLD, symbol=symbol, reason="Scanning Leaderboard Whales")
 
-        # Filter specifically for LEADER_WHALE tier
-        leader_bets = [b for b in whale_bets if b.get('tier') == 'LEADER_WHALE']
-        for bet in leader_bets:
-            win_rate = bet.get('win_rate', 0.0)
-            whale_name = bet.get('whale_name', 'LeaderWhale')
-            q = bet.get('market_question', '')
-            choice = bet.get('outcome_choice', 'YES')
-            entry_price = bet.get('entry_price', 0.50)
+        # Filter specifically for LEADER_WHALE tier or any high winrate whale
+        if len(matching) == 0:
+            for bet in whale_bets:
+                win_rate = bet.get('win_rate', 0.0)
+                whale_name = bet.get('whale_name', 'LeaderWhale')
+                q = bet.get('market_question', '')
+                choice = bet.get('outcome_choice', 'YES')
+                entry_price = bet.get('entry_price', 0.50)
 
-            poly_symbol = f"LEADER_{choice}"
-            has_pos = any(p['symbol'] == poly_symbol for p in open_positions)
-
-            if not has_pos and win_rate >= self.params['min_whale_winrate']:
-                return StrategyDecision(
-                    action=Signal.BUY,
-                    symbol=poly_symbol,
-                    stake_usd=self.params['stake_usd'],
-                    stop_loss_pct=self.params['stop_loss_pct'],
-                    take_profit_pct=self.params['take_profit_pct'],
-                    reason=f"👑 Copied #{whale_name} (WinRate: {win_rate}%) on '{q[:36]}...' -> {choice} @ ${entry_price:.2f}"
-                )
+                if win_rate >= 68.0:
+                    return StrategyDecision(
+                        action=Signal.BUY,
+                        symbol=symbol,
+                        stake_usd=self.params['stake_usd'],
+                        stop_loss_pct=self.params['stop_loss_pct'],
+                        take_profit_pct=self.params['take_profit_pct'],
+                        reason=f"👑 Copied #{whale_name} (WinRate: {win_rate}%) on '{q[:36]}...' -> {choice} @ ${entry_price:.2f}"
+                    )
 
         return StrategyDecision(action=Signal.HOLD, symbol=symbol, reason="Waiting for top leaderboard whale moves")

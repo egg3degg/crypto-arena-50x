@@ -46,26 +46,27 @@ class BharatBreakoutStrategy(BaseStrategy):
         price = ticker.get('price', last_row['close'])
         ema_20 = last_row.get('ema_20', 0.0)
         ema_50 = last_row.get('ema_50', 0.0)
-        rsi = last_row.get('rsi_14', 50.0)
+        rsi = last_row.get('rsi', last_row.get('rsi_14', 50.0))
         adx = last_row.get('adx', 20.0)
-        has_open = any(p['symbol'] == symbol for p in open_positions)
+        matching = [p for p in open_positions if p['symbol'] == symbol]
+        has_open = len(matching) > 0
 
         # Exit logic
         if has_open:
-            matching = [p for p in open_positions if p['symbol'] == symbol]
             for p in matching:
                 unrealized_pct = p.get('unrealized_pnl_pct', 0.0) / 100.0
                 if unrealized_pct >= self.params['take_profit_pct']:
-                    return StrategyDecision(action=Signal.SELL, reason=f"NSE Target Hit (+{unrealized_pct*100:.1f}%)")
+                    return StrategyDecision(action=Signal.SELL, symbol=symbol, reason=f"NSE Target Hit (+{unrealized_pct*100:.1f}%)")
                 if unrealized_pct <= -self.params['stop_loss_pct']:
-                    return StrategyDecision(action=Signal.SELL, reason=f"NSE Stop-Loss Hit ({unrealized_pct*100:.1f}%)")
+                    return StrategyDecision(action=Signal.SELL, symbol=symbol, reason=f"NSE Stop-Loss Hit ({unrealized_pct*100:.1f}%)")
 
         # Entry logic: EMA Ribbon + RSI Momentum + ADX > 20
         if not has_open:
-            bullish_orb = (price > ema_20 > ema_50) and (rsi > 54) and (adx >= self.params['min_adx'])
+            bullish_orb = (price > ema_20 > ema_50) and (rsi > 52) and (adx >= 18.0)
             if bullish_orb:
                 return StrategyDecision(
                     action=Signal.BUY,
+                    symbol=symbol,
                     stake_usd=self.params['stake_usd'],
                     stop_loss_pct=self.params['stop_loss_pct'],
                     take_profit_pct=self.params['take_profit_pct'],
@@ -73,4 +74,4 @@ class BharatBreakoutStrategy(BaseStrategy):
                     reason=f"NSE Momentum Breakout on {symbol} (EMA 20>50, RSI: {rsi:.1f}, ADX: {adx:.1f})"
                 )
 
-        return StrategyDecision(action=Signal.HOLD, reason="Waiting for Indian market breakout")
+        return StrategyDecision(action=Signal.HOLD, symbol=symbol, reason="Waiting for Indian market breakout")

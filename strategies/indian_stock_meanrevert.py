@@ -42,30 +42,31 @@ class DesiMeanRevertStrategy(BaseStrategy):
 
         last_row = df.iloc[-1]
         price = ticker.get('price', last_row['close'])
-        rsi = last_row.get('rsi_14', 50.0)
+        rsi = last_row.get('rsi', last_row.get('rsi_14', 50.0))
         bb_lower = last_row.get('bb_lower', 0.0)
-        has_open = any(p['symbol'] == symbol for p in open_positions)
+        matching = [p for p in open_positions if p['symbol'] == symbol]
+        has_open = len(matching) > 0
 
         # Exit logic
         if has_open:
-            matching = [p for p in open_positions if p['symbol'] == symbol]
             for p in matching:
                 unrealized_pct = p.get('unrealized_pnl_pct', 0.0) / 100.0
                 if unrealized_pct >= self.params['take_profit_pct']:
-                    return StrategyDecision(action=Signal.SELL, reason=f"NSE Scalp Target Hit (+{unrealized_pct*100:.1f}%)")
+                    return StrategyDecision(action=Signal.SELL, symbol=symbol, reason=f"NSE Scalp Target Hit (+{unrealized_pct*100:.1f}%)")
                 if unrealized_pct <= -self.params['stop_loss_pct']:
-                    return StrategyDecision(action=Signal.SELL, reason=f"NSE Scalp Stop-Loss Hit ({unrealized_pct*100:.1f}%)")
+                    return StrategyDecision(action=Signal.SELL, symbol=symbol, reason=f"NSE Scalp Stop-Loss Hit ({unrealized_pct*100:.1f}%)")
 
-        # Entry logic: Price <= lower BB and RSI < 38
+        # Entry logic: Price <= lower BB or RSI < 42
         if not has_open:
-            if price <= bb_lower or rsi <= self.params['rsi_oversold']:
+            if price <= bb_lower or rsi <= 42.0:
                 return StrategyDecision(
                     action=Signal.BUY,
+                    symbol=symbol,
                     stake_usd=self.params['stake_usd'],
                     stop_loss_pct=self.params['stop_loss_pct'],
                     take_profit_pct=self.params['take_profit_pct'],
                     trailing_stop_pct=self.params['trailing_stop_pct'],
-                    reason=f"NSE Oversold Dip on {symbol} (RSI: {rsi:.1f} <= {self.params['rsi_oversold']}, Price at BB Lower ₹{bb_lower:.1f})"
+                    reason=f"NSE Oversold Dip on {symbol} (RSI: {rsi:.1f} <= 42.0, Price near BB Lower ₹{bb_lower:.1f})"
                 )
 
-        return StrategyDecision(action=Signal.HOLD, reason="NSE prices in normal range")
+        return StrategyDecision(action=Signal.HOLD, symbol=symbol, reason="NSE prices in normal range")

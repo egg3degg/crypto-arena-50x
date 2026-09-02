@@ -49,7 +49,7 @@ class PolymarketPredictorStrategy(BaseStrategy):
 
         # 2. Derive Spot Momentum Implied Probability (0.0 to 1.0)
         last_row = df.iloc[-1]
-        rsi = last_row.get('rsi_14', 50.0)
+        rsi = last_row.get('rsi', last_row.get('rsi_14', 50.0))
         ema_20 = last_row.get('ema_20', 0.0)
         ema_50 = last_row.get('ema_50', 0.0)
         adx = last_row.get('adx', 20.0)
@@ -57,13 +57,13 @@ class PolymarketPredictorStrategy(BaseStrategy):
 
         # Quantitative Probability Score based on Multi-Factor Technical Convergence
         bullish_score = 0.50
-        if rsi > 55: bullish_score += 0.12
-        elif rsi < 45: bullish_score -= 0.12
+        if rsi > 52: bullish_score += 0.14
+        elif rsi < 48: bullish_score -= 0.14
 
         if price > ema_20 > ema_50: bullish_score += 0.18
         elif price < ema_20 < ema_50: bullish_score -= 0.18
 
-        if adx > 25:
+        if adx > 20:
             bullish_score = bullish_score * 1.1 if bullish_score > 0.5 else bullish_score * 0.9
 
         implied_spot_prob = max(0.10, min(0.90, bullish_score))
@@ -91,18 +91,21 @@ class PolymarketPredictorStrategy(BaseStrategy):
                 if unrealized_pct >= self.params['take_profit_pct']:
                     return StrategyDecision(
                         action=Signal.SELL,
+                        symbol=symbol,
                         reason=f"Polymarket Share Take-Profit Target Hit (+{unrealized_pct*100:.1f}%)"
                     )
                 if unrealized_pct <= -self.params['stop_loss_pct']:
                     return StrategyDecision(
                         action=Signal.SELL,
+                        symbol=symbol,
                         reason=f"Polymarket Share Stop-Loss Triggered ({unrealized_pct*100:.1f}%)"
                     )
 
         # Entry Condition: Undervalued YES shares
-        if not has_open and edge >= self.params['min_probability_edge']:
+        if not has_open and edge >= 0.05:
             return StrategyDecision(
                 action=Signal.BUY,
+                symbol=symbol,
                 stake_usd=self.params['stake_usd'],
                 stop_loss_pct=self.params['stop_loss_pct'],
                 take_profit_pct=self.params['take_profit_pct'],
@@ -112,5 +115,6 @@ class PolymarketPredictorStrategy(BaseStrategy):
 
         return StrategyDecision(
             action=Signal.HOLD,
+            symbol=symbol,
             reason=f"Polymarket odds fair (Edge: {edge*100:.1f}%, Fair: {implied_spot_prob:.2f})"
         )
