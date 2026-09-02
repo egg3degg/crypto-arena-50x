@@ -259,12 +259,24 @@ async def start_grand_prix_race():
     if not engine:
         return JSONResponse(status_code=500, content={"error": "Engine not initialized"})
     try:
-        if hasattr(engine, 'reset_tournament'):
-            try:
-                engine.reset_tournament(capital_per_bot=50.0)
-            except TypeError:
-                engine.reset_tournament(50.0)
-        return {"status": "SUCCESS", "message": "24H $250 Grand Prix Race started! All bots reset to $50 with unlimited respawns."}
+        engine.race_start_time = time.time()
+        try:
+            engine.db.reset_tournament(50.0)
+        except Exception as dbe:
+            logger.warning(f"DB reset warning: {dbe}")
+        for bot_id, wallet in engine.wallets.items():
+            wallet.open_positions.clear()
+            wallet.current_balance = 50.0
+            wallet.available_balance = 50.0
+            wallet.total_pnl = 0.0
+            wallet.total_trades = 0
+            wallet.winning_trades = 0
+            wallet.losing_trades = 0
+            wallet.peak_equity = 50.0
+            wallet.max_drawdown = 0.0
+        if hasattr(engine, 'capital_allocator'):
+            engine.capital_allocator.rebalance_allocations(engine.strategies, force=True)
+        return {"status": "SUCCESS", "message": "24H $100 Survival Match started! All bots reset to $50. Reach $100 or die!"}
     except Exception as e:
         logger.error(f"Error starting race: {e}", exc_info=True)
         return JSONResponse(status_code=500, content={"error": str(e)})
