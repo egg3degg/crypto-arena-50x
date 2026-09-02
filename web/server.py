@@ -313,15 +313,20 @@ async def get_race_status():
         top_bot = bots[0] if bots else {}
         total_respawns = sum(int(b.get('respawn_count') or 0) for b in bots)
 
+        shutdown_remaining = max(0.0, 108000.0 - elapsed) # 30 hours total (24h tournament + 6h grace)
+
         return {
             "race_start_time": start_time,
             "elapsed_seconds": round(elapsed, 1),
             "remaining_seconds": round(remaining, 1),
+            "shutdown_remaining_seconds": round(shutdown_remaining, 1),
+            "shutdown_remaining_hours": round(shutdown_remaining / 3600.0, 2),
             "target_capital_usd": 100.0,
             "top_bot_name": top_bot.get('name', '---'),
             "top_bot_equity": top_bot.get('current_equity', 50.0),
             "total_respawns": total_respawns,
-            "is_active": True
+            "is_active": not getattr(engine, '_operation_shutdown_completed', False) if engine else True,
+            "operation_status": "OPERATION_CONCLUDED_ARCHIVED" if getattr(engine, '_operation_shutdown_completed', False) else "RUNNING_DEATHMATCH"
         }
     except Exception as e:
         logger.error(f"Error in get_race_status: {e}", exc_info=True)
@@ -329,12 +334,46 @@ async def get_race_status():
             "race_start_time": time.time(),
             "elapsed_seconds": 0,
             "remaining_seconds": 86400,
+            "shutdown_remaining_seconds": 108000,
+            "shutdown_remaining_hours": 30.0,
             "target_capital_usd": 100.0,
             "top_bot_name": "---",
             "top_bot_equity": 50.0,
             "total_respawns": 0,
-            "is_active": True
+            "is_active": True,
+            "operation_status": "RUNNING_DEATHMATCH"
         }
+
+@app.get("/api/learnings")
+async def get_tournament_learnings():
+    """Returns the compiled learnings, champion parameters, and regime insights."""
+    archive_path = Path(config.DATA_DIR) / "tournament_learnings_archive.json"
+    if archive_path.exists():
+        try:
+            with open(archive_path, 'r', encoding='utf-8') as fp:
+                return json.load(fp)
+        except Exception as e:
+            logger.error(f"Error reading learnings archive: {e}")
+
+    # Fallback to dynamic real-time learnings compilation
+    if not engine:
+        return {"status": "NO_ENGINE_RUNNING"}
+
+    leaderboard = engine.get_leaderboard_data()
+    trades = engine.db.get_trades(limit=200)
+    adjustments = engine.db.get_parameter_adjustments(limit=50)
+    research = engine.db.get_research_logs(limit=50)
+
+    top_bot = leaderboard[0] if leaderboard else {}
+    return {
+        "status": "LIVE_RECORDING",
+        "champion_in_lead": top_bot,
+        "all_bots_standings": leaderboard,
+        "total_trades_analyzed": len(trades),
+        "parameter_adaptations": adjustments,
+        "market_regime_intelligence": engine.latest_market_overview,
+        "recent_research_logs": research
+    }
 
 @app.get("/api/market-overview")
 async def get_market_overview():

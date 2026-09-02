@@ -4,8 +4,10 @@ Orchestrates the 5 competing bots, market data ingestion, paper wallets,
 autonomous research, and self-improvement loops.
 """
 import time
+import json
 import logging
 import asyncio
+from pathlib import Path
 from typing import Dict, List, Any, Optional
 import pandas as pd
 
@@ -612,8 +614,93 @@ class TournamentEngine:
         self.capital_allocator.rebalance_allocations(self.strategies, force=True)
         logger.info(f"🏆 24H $250 GRAND PRIX RACE STARTED! All bots reset to ${capital_per_bot:.2f} with unlimited respawns.")
 
+    def archive_and_shutdown_operation(self):
+        """
+        Gracefully shuts down the entire trading operation 6 hours after 24h tournament ends (30 hours total).
+        Liquidates all positions, compiles all learnings, and saves them to permanent archive.
+        """
+        self._operation_shutdown_completed = True
+        logger.warning("🛑 30-HOUR LIFETIME REACHED (24h Tournament + 6h Grace). Executing Autonomous Shutdown Protocol...")
+
+        # 1. Close/Liquidate all remaining open positions
+        closed_count = 0
+        for bot_id, wallet in self.wallets.items():
+            positions = list(wallet.get_open_positions())
+            for pos in positions:
+                price = pos.get('current_price', pos.get('entry_price', 1.0))
+                wallet.execute_sell(pos['position_id'], price=price, reason="OPERATION_SHUTDOWN_CONCLUDED")
+                closed_count += 1
+
+        # 2. Gather Complete Tournament Learnings & Stats
+        leaderboard = self.get_leaderboard_data()
+        trades = self.db.get_trades(limit=1000)
+        adjustments = self.db.get_parameter_adjustments(limit=500)
+
+        top_bot = leaderboard[0] if leaderboard else {}
+        champion_id = top_bot.get('bot_id', 'bot_4_adaptivegrid')
+        champion_strategy = self.strategies.get(champion_id)
+
+        learnings_payload = {
+            "tournament_metadata": {
+                "name": "24H $100 Survival Death Match + 6H Archive Grace",
+                "start_time": getattr(self, 'race_start_time', time.time()),
+                "shutdown_time": time.time(),
+                "total_duration_hours": 30.0,
+                "status": "OPERATION_CONCLUDED_ARCHIVED"
+            },
+            "champion_bot": {
+                "bot_id": top_bot.get('bot_id'),
+                "name": top_bot.get('name'),
+                "strategy_name": top_bot.get('strategy_name'),
+                "final_equity": top_bot.get('current_equity'),
+                "roi_pct": top_bot.get('roi_pct'),
+                "win_rate": top_bot.get('win_rate'),
+                "total_trades": top_bot.get('total_trades'),
+                "winning_trades": top_bot.get('winning_trades'),
+                "losing_trades": top_bot.get('losing_trades'),
+                "max_drawdown": top_bot.get('max_drawdown'),
+                "optimized_parameters": champion_strategy.params if champion_strategy else top_bot.get('active_strategy_params', {})
+            },
+            "all_bots_final_standings": leaderboard,
+            "total_trades_count": len(trades),
+            "total_parameter_adaptations_count": len(adjustments),
+            "key_learnings_summary": {
+                "best_performing_regime": self.latest_market_overview.get('regime', 'TRENDING_MOMENTUM'),
+                "total_positions_closed_at_shutdown": closed_count,
+                "take_profit_hit_rate": sum(1 for t in trades if 'Take-Profit' in t.get('reason', '') or 'Target' in t.get('reason', '')),
+                "stop_loss_hit_rate": sum(1 for t in trades if 'Stop-Loss' in t.get('reason', '')),
+                "production_readiness": "CHAMPION_STRATEGY_PERSISTED"
+            }
+        }
+
+        # 3. Save learnings to disk archive
+        archive_path = Path(config.DATA_DIR) / "tournament_learnings_archive.json"
+        try:
+            with open(archive_path, 'w', encoding='utf-8') as fp:
+                json.dump(learnings_payload, fp, indent=2)
+            logger.info(f"💾 All tournament learnings successfully archived to {archive_path}")
+        except Exception as e:
+            logger.error(f"Error saving tournament learnings archive: {e}")
+
+        # 4. Log to SQLite Research Database
+        self.db.log_research(
+            category="OPERATION_SHUTDOWN_LEARNINGS",
+            title=f"🛑 Operation Concluded & Archived: Champion {top_bot.get('name')} (${top_bot.get('current_equity', 50.0):.2f})",
+            details=learnings_payload
+        )
+
+        # 5. Dispatch Final Notification
+        asyncio.create_task(self.notifier.notify_research(
+            title=f"🛑 OPERATION CONCLUDED (24h + 6h Grace): {top_bot.get('name')}",
+            summary=f"The 24h tournament and 6h grace period have concluded.\nAll {closed_count} open positions liquidated.\n**All learnings and Champion Strategy persisted to archive!**"
+        ))
+
+        # 6. Conclude Engine Loop
+        self.is_running = False
+        logger.info("✔ Operation gracefully shut down. All learnings preserved in database and archive.")
+
     async def start(self):
-        """Starts 24/7 autonomous trading loop."""
+        """Starts 24/7 autonomous trading loop with 30-hour lifetime auto-shutdown."""
         self.is_running = True
         logger.info("Starting CryptoArena 50X Tournament Engine...")
         # Initial research scan
@@ -621,6 +708,16 @@ class TournamentEngine:
 
         while self.is_running:
             try:
+                # Check Auto-Shutdown: 6 hours after 24h tournament ends (30 hours = 108,000s)
+                now = time.time()
+                race_start = getattr(self, 'race_start_time', now)
+                elapsed = now - race_start
+                max_lifetime_seconds = 108000.0 # 30 hours
+
+                if elapsed >= max_lifetime_seconds and not getattr(self, '_operation_shutdown_completed', False):
+                    self.archive_and_shutdown_operation()
+                    break
+
                 await self.run_tick()
             except Exception as e:
                 logger.error(f"Error during tournament tick: {e}", exc_info=True)
