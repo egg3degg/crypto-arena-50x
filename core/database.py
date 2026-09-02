@@ -21,8 +21,22 @@ class ArenaDatabase:
         conn.row_factory = sqlite3.Row
         return conn
 
+    def _ensure_schema(self):
+        """Ensures all new columns exist on legacy tables."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA table_info(bots)")
+                cols = [r['name'] for r in cursor.fetchall()]
+                if 'respawn_count' not in cols:
+                    cursor.execute("ALTER TABLE bots ADD COLUMN respawn_count INTEGER DEFAULT 0")
+                    conn.commit()
+        except Exception as e:
+            logger.warning(f"Schema migration note: {e}")
+
     def _init_db(self):
         """Initializes tables if they do not exist."""
+        self._ensure_schema()
         with self._get_connection() as conn:
             cursor = conn.cursor()
 
