@@ -456,23 +456,23 @@ class TournamentEngine:
                 roi_pct = ((total_equity - wallet.initial_capital) / wallet.initial_capital) * 100.0
                 self.db.record_equity_snapshot(bot_id, wallet.available_balance, unrealized, total_equity, roi_pct)
 
-                # Check $250 Goal Milestone
-                if total_equity >= 250.0 and not getattr(self, f'_goal_reached_{bot_id}', False):
+                # Check $100 Survival Milestone
+                if total_equity >= 100.0 and not getattr(self, f'_goal_reached_{bot_id}', False):
                     setattr(self, f'_goal_reached_{bot_id}', True)
                     b_info = self.db.get_bot(bot_id) or {'name': bot_id}
-                    logger.info(f"🏆 $250 TARGET REACHED! {b_info.get('name')} hit ${total_equity:.2f} (500% ROI)!")
+                    logger.info(f"👑 $100 SURVIVAL TARGET REACHED! {b_info.get('name')} hit ${total_equity:.2f} (+100% ROI)!")
                     asyncio.create_task(self.notifier.notify_research(
-                        title=f"🏆 $250 TARGET REACHED: {b_info.get('name')}",
-                        summary=f"Bot **{b_info.get('name')}** has officially reached **${total_equity:.2f}** in paper capital!\nStrategy is validated and ready for real $50 deployment via `live_switch.py`."
+                        title=f"👑 $100 SURVIVED: {b_info.get('name')}",
+                        summary=f"Bot **{b_info.get('name')}** has officially reached **${total_equity:.2f}** (+100% ROI) and **SURVIVED** the 24H Death Match!"
                     ))
                     self.db.log_research(
                         category="CHAMPION_GOAL_REACHED",
-                        title=f"Champion $250 Goal Reached: {b_info.get('name')}",
+                        title=f"Champion $100 Survived: {b_info.get('name')}",
                         details={
                             "bot_id": bot_id,
                             "name": b_info.get('name'),
                             "final_equity": total_equity,
-                            "status": "READY_FOR_REAL_MONEY"
+                            "status": "SURVIVED_CHAMPION"
                         }
                     )
 
