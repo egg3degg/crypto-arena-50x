@@ -39,8 +39,27 @@ class MarketFeed:
             except Exception as e2:
                 logger.error(f"Failed to initialize fallback exchange: {e2}")
 
+    def _symbol_to_raw(self, symbol: str) -> str:
+        return symbol.replace('/', '').replace(':USDT', '').upper()
+
     def fetch_ticker(self, symbol: str) -> Dict[str, Any]:
-        """Fetches latest ticker with price, 24h volume, bid, ask."""
+        """Fetches latest ticker with price, 24h volume, bid, ask with ultra-low memory direct API."""
+        try:
+            if self.exchange and hasattr(self.exchange, 'publicGetTicker24hr'):
+                raw = self.exchange.publicGetTicker24hr({'symbol': self._symbol_to_raw(symbol)})
+                self.cached_tickers[symbol] = {
+                    'symbol': symbol,
+                    'price': float(raw.get('lastPrice') or 0.0),
+                    'bid': float(raw.get('bidPrice') or raw.get('lastPrice') or 0.0),
+                    'ask': float(raw.get('askPrice') or raw.get('lastPrice') or 0.0),
+                    'volume_24h': float(raw.get('volume') or 0.0),
+                    'change_24h_pct': float(raw.get('priceChangePercent') or 0.0),
+                    'timestamp': int(raw.get('closeTime') or time.time() * 1000)
+                }
+                return self.cached_tickers[symbol]
+        except Exception:
+            pass
+
         try:
             if self.exchange:
                 ticker = self.exchange.fetch_ticker(symbol)
@@ -65,11 +84,29 @@ class MarketFeed:
         return {'symbol': symbol, 'price': 100.0, 'bid': 99.95, 'ask': 100.05, 'volume_24h': 100000, 'change_24h_pct': 0.0, 'timestamp': int(time.time() * 1000), 'is_synthetic': True}
 
     def fetch_ohlcv_dataframe(self, symbol: str, timeframe: Optional[str] = None) -> pd.DataFrame:
-        """Fetches OHLCV and calculates indicators into a Pandas DataFrame."""
+        """Fetches OHLCV and calculates indicators into a Pandas DataFrame using low-memory direct klines."""
         tf = timeframe or self.timeframe
+        # 1. Fast direct kline endpoint (bypasses memory-heavy load_markets)
+        try:
+            if self.exchange and hasattr(self.exchange, 'publicGetKlines'):
+                klines = self.exchange.publicGetKlines({
+                    'symbol': self._symbol_to_raw(symbol),
+                    'interval': tf,
+                    'limit': min(self.limit, 60)
+                })
+                raw_ohlcv = [[int(k[0]), float(k[1]), float(k[2]), float(k[3]), float(k[4]), float(k[5])] for k in klines]
+                df = pd.DataFrame(raw_ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+                df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
+                df['symbol'] = symbol
+                df = self.calculate_indicators(df)
+                self.cached_candles[symbol] = df
+                return df
+        except Exception:
+            pass
+
         try:
             if self.exchange:
-                raw_ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe=tf, limit=self.limit)
+                raw_ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe=tf, limit=min(self.limit, 60))
                 df = pd.DataFrame(raw_ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
                 df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
                 df['symbol'] = symbol

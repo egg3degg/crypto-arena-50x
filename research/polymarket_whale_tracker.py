@@ -107,6 +107,8 @@ class PolymarketWhaleTracker:
     def fetch_all_traders(self) -> List[Dict[str, Any]]:
         return MEGA_LEADER_WHALES + MICRO_SMART_WALLETS + MICRO_ALGO_BOT_WALLETS
 
+    fetch_top_traders = fetch_all_traders
+
     def fetch_leader_whales(self) -> List[Dict[str, Any]]:
         return MEGA_LEADER_WHALES
 
