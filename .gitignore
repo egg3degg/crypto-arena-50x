@@ -1,0 +1,19 @@
+# Secrets and Environment
+.env
+*.env
+*.pem
+*.key
+
+# Database and Runtime data
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+
+# Logs
+*.log

@@ -39,11 +39,28 @@ async def lifespan(app: FastAPI):
     
     # Start 24/7 tournament loop in background
     tournament_task = asyncio.create_task(engine.start())
+
+    # Start 100-Wallet Multichain Tournament autonomous loop (runs every 5 minutes in cloud)
+    async def run_100_wallets_cloud_loop():
+        try:
+            from wallets_100_tournament import Tournament100Engine
+            w100_engine = Tournament100Engine()
+            while True:
+                try:
+                    w100_engine.run_tournament_cycle()
+                except Exception as ex:
+                    logger.error(f"Error in 100-wallet cloud cycle: {ex}")
+                await asyncio.sleep(300) # 5 minutes
+        except Exception as e:
+            logger.error(f"Failed to start 100-wallets background loop: {e}")
+
+    w100_task = asyncio.create_task(run_100_wallets_cloud_loop())
     yield
     # Graceful shutdown
     if engine:
         engine.stop()
     tournament_task.cancel()
+    w100_task.cancel()
 
 app = FastAPI(title="CryptoArena 50X Control Dashboard", version="1.0.0", lifespan=lifespan)
 
@@ -571,6 +588,28 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
     except Exception:
         manager.disconnect(websocket)
+
+@app.get("/wallets100", response_class=HTMLResponse)
+async def get_wallets100_page():
+    dash_file = Path(__file__).resolve().parent.parent / "data" / "wallets_100_dashboard.html"
+    if dash_file.exists():
+        return HTMLResponse(content=dash_file.read_text(encoding="utf-8"))
+    return HTMLResponse(content="<h1>100-Wallet Tournament Dashboard Initializing...</h1>")
+
+@app.get("/api/wallets100")
+async def get_wallets100_api():
+    state_file = Path(__file__).resolve().parent.parent / "data" / "wallets_100_state.json"
+    if state_file.exists():
+        with open(state_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"error": "State file not found"}
+
+@app.get("/solana100", response_class=HTMLResponse)
+async def get_solana100_page():
+    sol_file = Path(__file__).resolve().parent.parent / "data" / "solana_100_dashboard.html"
+    if sol_file.exists():
+        return HTMLResponse(content=sol_file.read_text(encoding="utf-8"))
+    return HTMLResponse(content="<h1>Solana 100 Dashboard Initializing...</h1>")
 
 # Mount static folder
 app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
