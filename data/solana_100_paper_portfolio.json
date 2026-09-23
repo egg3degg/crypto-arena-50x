@@ -3,18 +3,18 @@
   "chain": "Solana (SPL Token Architecture)",
   "benchmark": "SOL / USDC",
   "created_at": "2026-09-21T11:15:02.850151+00:00",
-  "last_updated": "2026-09-22T10:16:07.608228+00:00",
+  "last_updated": "2026-09-23T15:02:24.404294+00:00",
   "starting_balance_usdc": 100.0,
-  "cash_usdc": 28.3783,
-  "positions_value_usdc": 70.6907,
-  "total_equity_usdc": 99.069,
-  "total_pnl_usd": -0.931,
-  "total_pnl_pct": -0.93,
-  "realized_pnl_usd": -1.6042,
-  "unrealized_pnl_usd": 0.7229,
-  "total_trades": 1,
+  "cash_usdc": 27.7794,
+  "positions_value_usdc": 69.4232,
+  "total_equity_usdc": 97.2026,
+  "total_pnl_usd": -2.7974,
+  "total_pnl_pct": -2.8,
+  "realized_pnl_usd": -2.1884,
+  "unrealized_pnl_usd": -0.5417,
+  "total_trades": 2,
   "winning_trades": 0,
-  "losing_trades": 1,
+  "losing_trades": 2,
   "win_rate_pct": 0.0,
   "positions": [
     {
@@ -23,7 +23,7 @@
       "side": "LONG",
       "quantity": 19.7563,
       "entry_price": 1.7707,
-      "current_price": 1.808,
+      "current_price": 1.744,
       "cost_basis": 35.0,
       "fee_paid": 0.0175,
       "stop_loss": 1.7343,
@@ -31,31 +31,31 @@
       "tp2": 1.8591,
       "tp1_hit": false,
       "highest_price": 1.808,
-      "unrealized_pnl": 0.7369,
-      "unrealized_pnl_pct": 2.11,
+      "unrealized_pnl": -0.5275,
+      "unrealized_pnl_pct": -1.51,
       "opened_at": "2026-09-21T11:15:13.904246+00:00",
       "confidence": 0.85,
       "strategy_rationale": "Price ($1.77) > EMA50 ($1.75) | Bullish EMA Cross (EMA9 $1.78 > EMA21 $1.77) | Optimal Momentum RSI (53.7)"
     },
     {
-      "symbol": "SOLUSDT",
-      "display_name": "SOL (Solana)",
+      "symbol": "RAYUSDT",
+      "display_name": "RAY (Raydium)",
       "side": "LONG",
-      "quantity": 0.2989,
-      "entry_price": 117.0468,
-      "current_price": 117.0,
+      "quantity": 17.7207,
+      "entry_price": 1.9741,
+      "current_price": 1.9733,
       "cost_basis": 35.0,
       "fee_paid": 0.0175,
-      "stop_loss": 116.1051,
-      "tp1": 118.1186,
-      "tp2": 119.2371,
+      "stop_loss": 1.9001,
+      "tp1": 2.0648,
+      "tp2": 2.1563,
       "tp1_hit": false,
-      "highest_price": 117.0468,
-      "unrealized_pnl": -0.014,
+      "highest_price": 1.9741,
+      "unrealized_pnl": -0.0142,
       "unrealized_pnl_pct": -0.04,
-      "opened_at": "2026-09-22T10:16:07.608228+00:00",
-      "confidence": 0.6,
-      "strategy_rationale": "Price below EMA50 ($117.24) | Bullish EMA Cross (EMA9 $117.03 > EMA21 $116.94) | Optimal Momentum RSI (53.5)"
+      "opened_at": "2026-09-23T15:02:24.404294+00:00",
+      "confidence": 0.85,
+      "strategy_rationale": "Price ($1.97) > EMA50 ($1.88) | Bullish EMA Cross (EMA9 $1.94 > EMA21 $1.91) | Optimal Momentum RSI (58.9)"
     }
   ],
   "closed_trades": [
@@ -70,6 +70,18 @@
       "fee_usd": 0.0167,
       "closed_at": "2026-09-22T10:16:07.608228+00:00",
       "reason": "\ud83d\uded1 Stop loss triggered at $0.2924 to protect capital."
+    },
+    {
+      "symbol": "SOLUSDT",
+      "side": "STOP_LOSS",
+      "quantity": 0.2989,
+      "entry_price": 117.0468,
+      "exit_price": 115.15,
+      "pnl_usd": -0.5842,
+      "pnl_pct": -1.62,
+      "fee_usd": 0.0172,
+      "closed_at": "2026-09-23T15:02:24.404294+00:00",
+      "reason": "\ud83d\uded1 Stop loss triggered at $115.1500 to protect capital."
     }
   ],
   "equity_history": [
@@ -90,6 +102,12 @@
       "cash": 28.38,
       "equity": 99.07,
       "positions_value": 70.69
+    },
+    {
+      "timestamp": "2026-09-23T15:02:24.404294+00:00",
+      "cash": 27.78,
+      "equity": 97.2,
+      "positions_value": 69.42
     }
   ],
   "action_logs": [
@@ -120,6 +138,18 @@
     {
       "timestamp": "2026-09-22T10:16:07.608228+00:00",
       "message": "\ud83d\uded2 [BUY ORDER] SOLUSDT: Allocated $35.00 USDC -> 0.2989 tokens @ $117.0468. SL: $116.1051 (-0.8%), TP1: $118.1186 (+0.9%)."
+    },
+    {
+      "timestamp": "2026-09-23T15:02:22.639435+00:00",
+      "message": "\ud83d\udd0d Scanning Solana ecosystem pairs on live market feeds..."
+    },
+    {
+      "timestamp": "2026-09-23T15:02:24.404294+00:00",
+      "message": "\ud83d\uded1 [STOP LOSS] SOLUSDT: Sold 0.2989 at $115.1500 (-0.58 USD). Capital safeguarded."
+    },
+    {
+      "timestamp": "2026-09-23T15:02:24.404294+00:00",
+      "message": "\ud83d\uded2 [BUY ORDER] RAYUSDT: Allocated $35.00 USDC -> 17.7207 tokens @ $1.9741. SL: $1.9001 (-3.7%), TP1: $2.0648 (+4.6%)."
     }
   ]
 }
