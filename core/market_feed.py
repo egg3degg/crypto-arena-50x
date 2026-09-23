@@ -21,6 +21,7 @@ class MarketFeed:
         self.exchange = None
         self.cached_candles: Dict[str, pd.DataFrame] = {}
         self.cached_tickers: Dict[str, Dict[str, Any]] = {}
+        self.candle_cache_times: Dict[str, float] = {}
         self.last_update_time = 0
         self._init_exchange()
 
@@ -83,9 +84,23 @@ class MarketFeed:
         logger.warning(f"🚨 [DATA TRANSPARENCY WARNING] Generating synthetic fallback ticker for {symbol} because exchange API and cache are unavailable.")
         return {'symbol': symbol, 'price': 100.0, 'bid': 99.95, 'ask': 100.05, 'volume_24h': 100000, 'change_24h_pct': 0.0, 'timestamp': int(time.time() * 1000), 'is_synthetic': True}
 
-    def fetch_ohlcv_dataframe(self, symbol: str, timeframe: Optional[str] = None) -> pd.DataFrame:
-        """Fetches OHLCV and calculates indicators into a Pandas DataFrame using low-memory direct klines."""
+    def clear_cache(self):
+        """Reclaims memory by clearing cached DataFrames and tickers."""
+        self.cached_candles.clear()
+        self.cached_tickers.clear()
+        self.candle_cache_times.clear()
+
+    def fetch_ohlcv_dataframe(self, symbol: str, timeframe: Optional[str] = None, force_refresh: bool = False) -> pd.DataFrame:
+        """Fetches OHLCV and calculates indicators into a Pandas DataFrame using low-memory direct klines with 15s TTL."""
         tf = timeframe or self.timeframe
+        now = time.time()
+
+        # Low-memory TTL caching: Return existing indicator dataframe if computed within last 15 seconds
+        if not force_refresh and symbol in self.cached_candles:
+            last_fetch = self.candle_cache_times.get(symbol, 0.0)
+            if now - last_fetch < 15.0:
+                return self.cached_candles[symbol]
+
         # 1. Fast direct kline endpoint (bypasses memory-heavy load_markets)
         try:
             if self.exchange and hasattr(self.exchange, 'publicGetKlines'):
@@ -100,6 +115,7 @@ class MarketFeed:
                 df['symbol'] = symbol
                 df = self.calculate_indicators(df)
                 self.cached_candles[symbol] = df
+                self.candle_cache_times[symbol] = now
                 return df
         except Exception:
             pass
@@ -114,6 +130,7 @@ class MarketFeed:
                 # Calculate standard indicators
                 df = self.calculate_indicators(df)
                 self.cached_candles[symbol] = df
+                self.candle_cache_times[symbol] = now
                 return df
         except Exception as e:
             logger.warning(f"⚠️ [MARKET_FEED] Exchange fetch_ohlcv error for {symbol} ({tf}): {e}")

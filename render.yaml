@@ -12,3 +12,7 @@ services:
         value: 0.0.0.0
       - key: WEB_PORT
         value: 10000
+      - key: MALLOC_ARENA_MAX
+        value: 2
+      - key: PYTHONMALLOC
+        value: malloc

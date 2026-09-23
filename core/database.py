@@ -419,13 +419,44 @@ class ArenaDatabase:
             """, (bot_id, now_iso, balance, unrealized_pnl, total_equity, roi_pct))
             conn.commit()
 
-    def get_equity_history(self, bot_id: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+        # Self-prune periodically
+        if not hasattr(self, "_snapshot_insert_count"):
+            self._snapshot_insert_count = 0
+        self._snapshot_insert_count += 1
+        if self._snapshot_insert_count >= 200:
+            self._snapshot_insert_count = 0
+            try:
+                self.prune_old_snapshots(keep_latest=2000)
+            except Exception:
+                pass
+
+    def prune_old_snapshots(self, keep_latest: int = 2000):
+        """Prunes historical equity snapshots to avoid unbounded SQLite and memory growth."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                DELETE FROM equity_snapshots 
+                WHERE id NOT IN (
+                    SELECT id FROM equity_snapshots ORDER BY id DESC LIMIT ?
+                )
+            """, (keep_latest,))
+            conn.commit()
+
+    def get_equity_history(self, bot_id: Optional[str] = None, limit: int = 300) -> List[Dict[str, Any]]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             if bot_id:
-                cursor.execute("SELECT * FROM equity_snapshots WHERE bot_id = ? ORDER BY id ASC", (bot_id,))
+                cursor.execute("""
+                    SELECT * FROM (
+                        SELECT * FROM equity_snapshots WHERE bot_id = ? ORDER BY id DESC LIMIT ?
+                    ) ORDER BY id ASC
+                """, (bot_id, limit))
             else:
-                cursor.execute("SELECT * FROM equity_snapshots ORDER BY id ASC")
+                cursor.execute("""
+                    SELECT * FROM (
+                        SELECT * FROM equity_snapshots ORDER BY id DESC LIMIT ?
+                    ) ORDER BY id ASC
+                """, (limit,))
             return [dict(row) for row in cursor.fetchall()]
 
     # --- Research & Self-Improvement Logs ---

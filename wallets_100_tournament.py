@@ -420,9 +420,10 @@ class Tournament100Engine:
         market = {}
         try:
             url = "https://api.binance.com/api/v3/ticker/24hr"
-            r = requests.get(url, timeout=7).json()
+            syms_param = json.dumps(MARKET_SYMBOLS, separators=(',', ':'))
+            r = requests.get(url, params={"symbols": syms_param}, timeout=7).json()
             if isinstance(r, list):
-                lookup = {item["symbol"]: item for item in r if item["symbol"] in MARKET_SYMBOLS}
+                lookup = {item["symbol"]: item for item in r if item.get("symbol") in MARKET_SYMBOLS}
                 for sym, data in lookup.items():
                     price = float(data.get("lastPrice", 0.0))
                     change = float(data.get("priceChangePercent", 0.0))
@@ -711,6 +712,11 @@ class Tournament100Engine:
 
         self._save_state()
         self.generate_html_dashboard(market)
+        try:
+            import gc
+            gc.collect()
+        except Exception:
+            pass
         return self.state
 
     def generate_html_dashboard(self, market: Dict[str, Any]):

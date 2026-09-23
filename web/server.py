@@ -3,6 +3,8 @@ Web Dashboard Server (FastAPI + WebSockets)
 Provides real-time REST and WebSocket feeds for the CryptoArena Tournament.
 """
 import os
+import sys
+import time
 import json
 import asyncio
 import logging
@@ -40,6 +42,14 @@ async def lifespan(app: FastAPI):
     # Start 24/7 tournament loop in background
     tournament_task = asyncio.create_task(engine.start())
 
+    # Start Memory Guard (periodic glibc malloc_trim, gc, and cache compaction)
+    try:
+        from core.memory_guard import MemoryGuard
+    except (ImportError, ValueError):
+        from ..core.memory_guard import MemoryGuard
+    mem_guard = MemoryGuard(engine=engine, check_interval=45, emergency_limit_mb=320.0)
+    mem_task = mem_guard.start()
+
     # Start 100-Wallet Multichain Tournament autonomous loop (runs every 5 minutes in cloud)
     async def run_100_wallets_cloud_loop():
         try:
@@ -59,6 +69,8 @@ async def lifespan(app: FastAPI):
     # Graceful shutdown
     if engine:
         engine.stop()
+    mem_guard.stop()
+    mem_task.cancel()
     tournament_task.cancel()
     w100_task.cancel()
 
@@ -274,6 +286,21 @@ async def harvest_profits():
 @app.get("/api/ping")
 async def ping():
     return {"version": "1.2.0-survival-100", "status": "OK", "timestamp": time.time()}
+
+@app.get("/api/memory-status")
+async def get_memory_status():
+    try:
+        from core.memory_guard import get_process_rss_mb, trim_memory
+        rss = get_process_rss_mb()
+        return {
+            "rss_mb": rss,
+            "render_limit_mb": 512.0,
+            "headroom_mb": round(max(0.0, 512.0 - rss), 2) if rss > 0 else "N/A",
+            "utilization_pct": round((rss / 512.0) * 100.0, 1) if rss > 0 else "N/A",
+            "status": "HEALTHY" if rss < 350.0 else "WARNING"
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.post("/api/start-race")
 async def start_grand_prix_race():
