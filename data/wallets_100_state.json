@@ -3775,5 +3775,10 @@
       "avg_pnl_pct": -0.69,
       "best_performer": "Control_Pure_Cash_USDC ($100.00)"
     }
-  }
+  },
+  "tournament_status": "CONCLUDED_ARCHIVED",
+  "concluded_at": "2026-09-28T10:07:18.667917+00:00",
+  "final_total_equity": 10036.42,
+  "final_total_pnl_usd": 36.42,
+  "final_total_pnl_pct": 0.36
 }

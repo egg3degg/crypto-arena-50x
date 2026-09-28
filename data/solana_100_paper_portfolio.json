@@ -5,39 +5,18 @@
   "created_at": "2026-09-21T11:15:02.850151+00:00",
   "last_updated": "2026-09-28T10:04:59.771798+00:00",
   "starting_balance_usdc": 100.0,
-  "cash_usdc": 66.6404,
-  "positions_value_usdc": 35.4768,
-  "total_equity_usdc": 102.1172,
-  "total_pnl_usd": 2.1172,
-  "total_pnl_pct": 2.12,
-  "realized_pnl_usd": 1.6901,
+  "cash_usdc": 102.1,
+  "positions_value_usdc": 0.0,
+  "total_equity_usdc": 102.1,
+  "total_pnl_usd": 2.1,
+  "total_pnl_pct": 2.1,
+  "realized_pnl_usd": 2.17,
   "unrealized_pnl_usd": 0.4944,
-  "total_trades": 4,
-  "winning_trades": 2,
+  "total_trades": 5,
+  "winning_trades": 3,
   "losing_trades": 2,
-  "win_rate_pct": 50.0,
-  "positions": [
-    {
-      "symbol": "RAYUSDT",
-      "display_name": "RAY (Raydium)",
-      "side": "LONG",
-      "quantity": 17.7207,
-      "entry_price": 1.9741,
-      "current_price": 2.002,
-      "cost_basis": 35.0,
-      "fee_paid": 0.0175,
-      "stop_loss": 1.9001,
-      "tp1": 2.0648,
-      "tp2": 2.1563,
-      "tp1_hit": false,
-      "highest_price": 2.002,
-      "unrealized_pnl": 0.4944,
-      "unrealized_pnl_pct": 1.41,
-      "opened_at": "2026-09-23T15:02:24.404294+00:00",
-      "confidence": 0.85,
-      "strategy_rationale": "Price ($1.97) > EMA50 ($1.88) | Bullish EMA Cross (EMA9 $1.94 > EMA21 $1.91) | Optimal Momentum RSI (58.9)"
-    }
-  ],
+  "win_rate_pct": 60.0,
+  "positions": [],
   "closed_trades": [
     {
       "symbol": "JUPUSDT",
@@ -86,6 +65,17 @@
       "fee_usd": 0.0096,
       "closed_at": "2026-09-28T10:04:59.771798+00:00",
       "reason": "\ud83d\ude80 Take Profit 2 target hit at $1.9390! Exited remaining position with maximum gain."
+    },
+    {
+      "symbol": "RAYUSDT",
+      "side": "SELL_FINAL_CLOSE",
+      "quantity": 17.7207,
+      "entry_price": 1.9741,
+      "exit_price": 2.002,
+      "pnl_usd": 0.48,
+      "pnl_pct": 1.41,
+      "closed_at": "2026-09-28T10:07:10.379686+00:00",
+      "reason": "\ud83d\uded1 Final Project Concluded: Gracefully closed position into 100% USDC cash."
     }
   ],
   "equity_history": [
@@ -183,5 +173,6 @@
       "timestamp": "2026-09-28T10:04:59.771798+00:00",
       "message": "\ud83d\ude80 [TP2 FULL EXIT] RENDERUSDT: Sold remaining 9.8782 at $1.9390 (+9.5%). Target fully achieved."
     }
-  ]
+  ],
+  "status": "CONCLUDED_ARCHIVED"
 }
