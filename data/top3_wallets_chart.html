@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top 3 Champion Wallets - Performance & Equity Curves</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background: radial-gradient(circle at top right, #0f172a, #020617); }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen p-4 md:p-8 font-sans">
+    <div class="max-w-6xl mx-auto space-y-6">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-2xl backdrop-blur">
+            <div>
+                <div class="flex items-center gap-3">
+                    <span class="text-3xl">🏆</span>
+                    <div>
+                        <h1 class="text-2xl font-black text-white tracking-tight">Top 3 Champion Wallets vs Benchmark</h1>
+                        <p class="text-sm text-cyan-400 font-mono">Performance Comparison, Trade Analysis & Live Equity Curves</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 md:mt-0 flex items-center gap-2">
+                <span class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                    Verified Tournament Data
+                </span>
+            </div>
+        </header>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Wallet 77 -->
+            <div class="bg-slate-900/80 border border-purple-500/40 rounded-xl p-5 shadow">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs uppercase font-bold text-purple-400">Current Leader #1</span>
+                    <span class="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded border border-purple-500/30">Bonding Curve</span>
+                </div>
+                <div class="text-lg font-bold text-white">Wallet 77: Pump.fun Deployer</div>
+                <div class="text-3xl font-black text-emerald-400 mt-1">$153.73 <span class="text-sm font-semibold">(+53.73%)</span></div>
+                <div class="text-xs text-slate-400 mt-2">Peak: $153.81 | Dev Token Equity: $53.73 + $100 Cash</div>
+            </div>
+
+            <!-- Wallet 70 -->
+            <div class="bg-slate-900/80 border border-cyan-500/40 rounded-xl p-5 shadow">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs uppercase font-bold text-cyan-400">Peak Champion</span>
+                    <span class="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30">Whale Sniper</span>
+                </div>
+                <div class="text-lg font-bold text-white">Wallet 70: Whale Meme Sniper</div>
+                <div class="text-3xl font-black text-cyan-300 mt-1">$113.95 <span class="text-sm font-semibold">(+13.95%)</span></div>
+                <div class="text-xs text-slate-400 mt-2">All-Time Peak: <b class="text-amber-300">$207.90 (+107.9%)</b> | 100% Cash Now</div>
+            </div>
+
+            <!-- Wallet 66 -->
+            <div class="bg-slate-900/80 border border-amber-500/40 rounded-xl p-5 shadow">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs uppercase font-bold text-amber-400">Cluster Alpha</span>
+                    <span class="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30">Whale Clusters</span>
+                </div>
+                <div class="text-lg font-bold text-white">Wallet 66: Smart Cluster</div>
+                <div class="text-3xl font-black text-amber-300 mt-1">$110.57 <span class="text-sm font-semibold">(+10.57%)</span></div>
+                <div class="text-xs text-slate-400 mt-2">All-Time Peak: <b class="text-amber-300">$201.14 (+101.1%)</b> | Active in $RAY</div>
+            </div>
+        </div>
+
+        <!-- Equity Curve Chart -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <h3 class="text-base font-bold text-white mb-4 flex items-center justify-between">
+                <span>📈 Multi-Cycle Equity Progression ($100 Starting Capital)</span>
+                <span class="text-xs text-slate-400 font-mono">Cycles 1 through 8</span>
+            </h3>
+            <div class="h-80">
+                <canvas id="topWalletsChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Detailed Trade Log Table -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <h3 class="text-base font-bold text-white mb-4">⚡ Execution Log & Trade History for Top 3 Wallets</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="text-slate-400 border-b border-slate-700 uppercase tracking-wider text-[11px]">
+                            <th class="py-3 px-3">Wallet</th>
+                            <th class="py-3 px-3">Asset</th>
+                            <th class="py-3 px-3">Type</th>
+                            <th class="py-3 px-3">Entry / Action</th>
+                            <th class="py-3 px-3">Exit / Target</th>
+                            <th class="py-3 px-3">PnL</th>
+                            <th class="py-3 px-3">Core Strategy Rationale</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/60 font-sans">
+                        <tr class="hover:bg-slate-800/30">
+                            <td class="py-3 px-3 font-bold text-purple-400">Wallet 77</td>
+                            <td class="py-3 px-3 font-semibold text-white">$PAPER (Solana)</td>
+                            <td class="py-3 px-3"><span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300">TOKEN_LAUNCH</span></td>
+                            <td class="py-3 px-3">Seed $100 LP (70% Dev Share)</td>
+                            <td class="py-3 px-3">Graduation Target: $69k MCap</td>
+                            <td class="py-3 px-3 font-bold text-emerald-400">+$53.73 (+53.7%)</td>
+                            <td class="py-3 px-3 text-slate-300">Simulated retail buyer inflows pushed bonding curve to 17.6% ($7,675 MCap).</td>
+                        </tr>
+                        <tr class="hover:bg-slate-800/30">
+                            <td class="py-3 px-3 font-bold text-cyan-400">Wallet 70</td>
+                            <td class="py-3 px-3 font-semibold text-white">PEPE & WIF</td>
+                            <td class="py-3 px-3"><span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">BUY_SNIPE</span></td>
+                            <td class="py-3 px-3">Followed on-chain smart wallet cluster inflow</td>
+                            <td class="py-3 px-3">Sold at +107% peak / TP target</td>
+                            <td class="py-3 px-3 font-bold text-emerald-400">+$107.90 at peak (+$13.95 closed)</td>
+                            <td class="py-3 px-3 text-slate-300">Entered before retail momentum; took partial profits and returned 100% to cash.</td>
+                        </tr>
+                        <tr class="hover:bg-slate-800/30">
+                            <td class="py-3 px-3 font-bold text-amber-400">Wallet 66</td>
+                            <td class="py-3 px-3 font-semibold text-white">RAY (Raydium)</td>
+                            <td class="py-3 px-3"><span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">CLUSTER_BUY</span></td>
+                            <td class="py-3 px-3">Bought 19.742 RAY @ $2.0261</td>
+                            <td class="py-3 px-3">TP: $2.1274 | SL: $1.9653</td>
+                            <td class="py-3 px-3 font-bold text-emerald-400">+$101.14 at peak (+$10.57 current)</td>
+                            <td class="py-3 px-3 text-slate-300">Identified >3 whale wallets accumulating RAY; rode +13% breakout with active trailing stop.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ctx = document.getElementById('topWalletsChart').getContext('2d');
+        const cycles = ['Cycle 1', 'Cycle 2', 'Cycle 3 (Meme Surge)', 'Cycle 4 (RAY Rally)', 'Cycle 5', 'Cycle 6', 'Cycle 7', 'Cycle 8 (Current)'];
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: cycles,
+                datasets: [
+                    {
+                        label: 'Wallet 77 (Pump.fun Token Creator)',
+                        data: [100.0, 152.57, 153.81, 153.73, 153.73, 153.73, 153.73, 153.73],
+                        borderColor: '#c084fc',
+                        backgroundColor: 'rgba(192, 132, 252, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.25
+                    },
+                    {
+                        label: 'Wallet 70 (Whale Meme Early Sniper)',
+                        data: [100.0, 101.52, 207.90, 113.95, 113.95, 113.95, 113.95, 113.95],
+                        borderColor: '#22d3ee',
+                        backgroundColor: 'rgba(34, 211, 238, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.25
+                    },
+                    {
+                        label: 'Wallet 66 (Smart Money Cluster)',
+                        data: [100.0, 100.24, 110.57, 201.14, 150.20, 125.40, 115.00, 110.57],
+                        borderColor: '#fbbf24',
+                        backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.25
+                    },
+                    {
+                        label: 'HODL SOL Benchmark ($100)',
+                        data: [100.0, 100.28, 100.80, 99.20, 99.50, 99.80, 100.10, 100.28],
+                        borderColor: '#64748b',
+                        borderDash: [5, 5],
+                        borderWidth: 1.5,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#cbd5e1', font: { size: 11 } }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { color: '#94a3b8', callback: (v) => '$' + v }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
