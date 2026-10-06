@@ -43,6 +43,10 @@ CANDLE_LIMIT = 100
 RESEARCH_CYCLE_SECONDS = 60 * 30  # Every 30 minutes
 SELF_IMPROVE_CYCLE_SECONDS = 60 * 60 * 2  # Every 2 hours
 
+# StalkChain Data (https://data.stalkchain.com/) — MCP + REST for KOL / smart-money intel
+STALKCHAIN_API_KEY = os.getenv("STALKCHAIN_API_KEY", "")
+STALKCHAIN_API_BASE = os.getenv("STALKCHAIN_API_BASE", "https://data.stalkchain.com/api/v1")
+
 # Telegram Notification Settings
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")

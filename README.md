@@ -50,6 +50,7 @@ http://127.0.0.1:8088
 ### 1. Market Regime & Smart Wallet Intelligence
 - Every 30 minutes, the engine classifies the market state across all trading pairs (`SOL/USDT`, `ETH/USDT`, `BTC/USDT`, `AVAX/USDT`, `NEAR/USDT`).
 - Scans on-chain liquidity pools and smart wallets to compute composite Smart Money Accumulation scores for Bot 5.
+- **StalkChain Data (optional):** Set `STALKCHAIN_API_KEY` (from [dashboard](https://data.stalkchain.com/dashboard)) to enrich Bot 5 with tracked-trader coordinated buy activity. Cursor agents can use the MCP server in `.cursor/mcp.json` (`https://data.stalkchain.com/mcp`).
 
 ### 2. Self-Improvement Loop
 - Every 2 hours, the learning engine evaluates each bot's win rate, profit factor, and max drawdown:

@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "stalkchain": {
+      "url": "https://data.stalkchain.com/mcp"
+    }
+  }
+}

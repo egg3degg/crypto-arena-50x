@@ -14,12 +14,19 @@ try:
 except (ImportError, ValueError):
     from ..core.database import ArenaDatabase
 
+try:
+    from research.stalkchain_client import StalkChainClient, coordinated_buy_symbols
+except ImportError:
+    from .stalkchain_client import StalkChainClient, coordinated_buy_symbols
+
 logger = logging.getLogger("CryptoArena.SmartWalletTracker")
 
 class SmartWalletTracker:
     def __init__(self, db: ArenaDatabase):
         self.db = db
         self.cached_signals: Dict[str, Dict[str, Any]] = {}
+        self.stalkchain = StalkChainClient()
+        self._stalkchain_buy_symbols: Dict[str, float] = {}
         # Curated top smart wallet addresses being monitored (Solana & EVM)
         self.monitored_wallets = [
             {"address": "5tzFkiKscXHK5ZXCGbXZxdw7gTJJD5rxPrB5855Q6ee2", "chain": "solana", "alias": "SolWhaleAlpha", "win_rate_7d": 74.2, "pnl_30d_usd": 384000},
@@ -29,15 +36,43 @@ class SmartWalletTracker:
             {"address": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", "chain": "solana", "alias": "JupiterArbLeader", "win_rate_7d": 77.4, "pnl_30d_usd": 420000}
         ]
 
+    async def _refresh_stalkchain_signals(self) -> None:
+        if not self.stalkchain.enabled:
+            return
+        try:
+            payload = await self.stalkchain.coordinated_buys(min_traders=3, window_minutes=60)
+            self._stalkchain_buy_symbols = coordinated_buy_symbols(payload)
+            logger.info(
+                "StalkChain coordinated buys: %s symbols",
+                len(self._stalkchain_buy_symbols),
+            )
+        except Exception as e:
+            logger.warning("StalkChain coordinated activity unavailable: %s", e)
+
+    def _apply_stalkchain_boost(self, asset: str, metric: Dict[str, Any]) -> Dict[str, Any]:
+        traders = self._stalkchain_buy_symbols.get(asset.upper())
+        if not traders:
+            return metric
+        boost = min(22.0, 4.0 * float(traders))
+        metric = dict(metric)
+        metric["score"] = round(min(95.0, metric.get("score", 50.0) + boost), 1)
+        metric["stalkchain_coordinated_traders"] = int(traders)
+        metric["whale_sentiment"] = (
+            "BULLISH" if metric["score"] > 55 else metric.get("whale_sentiment", "NEUTRAL")
+        )
+        metric["data_source"] = "dexscreener+stalkchain"
+        return metric
+
     async def scan_smart_money(self, symbols: List[str]) -> Dict[str, Dict[str, Any]]:
         """Scans on-chain dex activity and smart wallet inflows for watched symbols."""
+        await self._refresh_stalkchain_signals()
         signals = {}
 
         for sym in symbols:
             base_asset = sym.split('/')[0]
             # Fetch or generate live on-chain metrics
             metric = await self._fetch_onchain_flow_metric(base_asset)
-            signals[sym] = metric
+            signals[sym] = self._apply_stalkchain_boost(base_asset, metric)
 
         self.cached_signals = signals
 
